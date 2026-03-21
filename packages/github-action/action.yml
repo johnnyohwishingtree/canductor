@@ -1,0 +1,42 @@
+name: 'Canductor Verify'
+description: 'Run canductor verification layers on a PR and report the quality score'
+
+inputs:
+  ref:
+    description: 'Git ref to verify (PR number or branch)'
+    required: false
+    default: ''
+
+outputs:
+  score:
+    description: 'Composite quality score (0-100)'
+    value: ${{ steps.verify.outputs.score }}
+  decision:
+    description: 'Policy decision (auto_merge, human_review, block)'
+    value: ${{ steps.verify.outputs.decision }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install canductor
+      shell: bash
+      run: npm install -g @canductor/cli
+
+    - name: Run verification
+      id: verify
+      shell: bash
+      run: |
+        REF="${{ inputs.ref || github.event.pull_request.number || 'HEAD' }}"
+        canductor verify "$REF"
+
+        SCORE=$(canductor score "$REF")
+        echo "score=$SCORE" >> "$GITHUB_OUTPUT"
+
+        # Extract decision from the last line of results
+        DECISION=$(tail -1 .canductor/results.tsv | cut -f4)
+        echo "decision=$DECISION" >> "$GITHUB_OUTPUT"

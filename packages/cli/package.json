@@ -1,0 +1,19 @@
+{
+  "name": "@canductor/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "canductor": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@canductor/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.9.0"
+  }
+}

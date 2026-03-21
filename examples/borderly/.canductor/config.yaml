@@ -1,0 +1,51 @@
+# Canductor config for Borderly (React Native travel app)
+# This is the first real-world customer of canductor.
+version: 1
+
+layers:
+  typecheck:
+    name: typecheck
+    type: deterministic
+    run: "pnpm typecheck"
+    weight: 1.0
+
+  tests:
+    name: tests
+    type: deterministic
+    run: "pnpm test"
+    weight: 1.0
+
+  lint:
+    name: lint
+    type: deterministic
+    run: "pnpm lint"
+    weight: 0.8
+
+  bundle_ios:
+    name: bundle_ios
+    type: deterministic
+    run: "npx react-native bundle --platform ios --dev false --entry-file index.js --bundle-output /tmp/bundle.js"
+    weight: 0.9
+
+  visual:
+    name: visual
+    type: screenshot-diff
+    capture: "E2E_PROJECT=screenshot-capture npx playwright test captureScreenshots --project=screenshot-capture --workers=1"
+    baseline: ".canductor/baselines/"
+    threshold: 5
+    weight: 0.8
+
+  ux_review:
+    name: ux_review
+    type: agent-review
+    model: claude-sonnet-4-6
+    rubric: ".canductor/rubrics/react-native-ux.md"
+    context:
+      - "e2e/screenshots/"
+      - "docs/mvp-proposal.md"
+    weight: 0.6
+
+policy:
+  auto_merge: "all_deterministic_pass AND composite_score >= baseline"
+  human_review: "composite_score < baseline OR ux_review.has_issues"
+  block: "any_deterministic_fail"
