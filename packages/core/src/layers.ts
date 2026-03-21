@@ -3,8 +3,10 @@
  */
 
 import { execSync } from 'node:child_process';
-import { readFileSync, existsSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import type { LayerConfig, LayerResult } from './types.js';
+import { runAgentReview } from './agent-review.js';
+import { compareScreenshots } from './screenshot.js';
 
 /** Run a deterministic layer (shell command, pass/fail). */
 export function runDeterministicLayer(layer: LayerConfig): LayerResult {
@@ -66,9 +68,7 @@ export function runScreenshotDiffLayer(layer: LayerConfig): LayerResult {
     }
   }
 
-  // Step 2: Compare to baseline
-  // TODO: Implement pixel diff comparison
-  // For now, pass if baseline directory exists (captures were taken)
+  // Step 2: Compare to baseline using pixel diff
   const baselineExists = layer.baseline && existsSync(layer.baseline);
   if (!baselineExists) {
     return {
@@ -81,51 +81,74 @@ export function runScreenshotDiffLayer(layer: LayerConfig): LayerResult {
     };
   }
 
-  // Placeholder: real implementation would do pixel diff and return % change
+  // Determine currentDir: if capture command was provided, use the directory
+  // from the layer config; otherwise fall back to baseline (self-compare).
+  // The capture command is expected to place screenshots in a known directory.
+  // For now, we expect the capture output directory to match the layer's
+  // "run" or a sibling of baseline. Convention: currentDir = baseline + '-current'
+  // or override via layer config. We use the baseline parent + '/current' as default.
+  const currentDir = layer.capture
+    ? layer.baseline!.replace(/\/?$/, '-current')
+    : layer.baseline!;
+
+  if (!existsSync(currentDir)) {
+    return {
+      name: layer.name,
+      type: 'screenshot-diff',
+      pass: false,
+      score: 0,
+      errors: `Current screenshots directory not found: ${currentDir}`,
+      duration_ms: Date.now() - start,
+    };
+  }
+
+  const threshold = layer.threshold ?? 1;
+  const diffResult = compareScreenshots(currentDir, layer.baseline!, threshold);
+
+  const score = Math.max(0, Math.min(100, Math.round(100 - diffResult.overallDiffPercent)));
+
   return {
     name: layer.name,
     type: 'screenshot-diff',
-    pass: true,
-    score: 100,
-    errors: '',
+    pass: diffResult.pass,
+    score,
+    errors: diffResult.pass ? '' : diffResult.summary,
     duration_ms: Date.now() - start,
   };
 }
 
 /** Run an agent-review layer (send context + rubric to LLM, parse verdict). */
-export function runAgentReviewLayer(layer: LayerConfig): LayerResult {
+export async function runAgentReviewLayer(layer: LayerConfig): Promise<LayerResult> {
   const start = Date.now();
 
-  // Load rubric
-  const rubricContent = layer.rubric && existsSync(layer.rubric)
-    ? readFileSync(layer.rubric, 'utf-8')
-    : null;
-
-  if (!rubricContent) {
+  if (!layer.rubric) {
     return {
       name: layer.name,
       type: 'agent-review',
       pass: true,
       score: 100,
-      errors: 'No rubric file found — skipping agent review',
+      errors: 'No rubric file specified — skipping agent review',
       duration_ms: Date.now() - start,
     };
   }
 
-  // TODO: Call LLM API with rubric + context, parse structured response
-  // For now, placeholder that passes
+  const model = layer.model ?? 'claude-sonnet-4-6';
+  const context = layer.context ?? [];
+
+  const result = await runAgentReview(layer.rubric, context, model);
+
   return {
     name: layer.name,
     type: 'agent-review',
-    pass: true,
-    score: 100,
-    errors: '',
+    pass: result.pass,
+    score: result.score,
+    errors: result.issues.map(i => `[${i.severity}] ${i.description}`).join('\n') || result.summary,
     duration_ms: Date.now() - start,
   };
 }
 
 /** Dispatch to the correct layer executor based on type. */
-export function runLayer(layer: LayerConfig): LayerResult {
+export async function runLayer(layer: LayerConfig): Promise<LayerResult> {
   switch (layer.type) {
     case 'deterministic':
       return runDeterministicLayer(layer);

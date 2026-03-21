@@ -8,12 +8,22 @@
  *   canductor score [ref]         — Run layers and print composite score
  *   canductor history             — Show results history
  *   canductor context             — Generate quality context for agent prompts
+ *   canductor inject <target>     — Inject quality context into a file (e.g. CLAUDE.md)
+ *   canductor suggest             — Suggest rule improvements based on history
  *   canductor init                — Create a starter .canductor/config.yaml
  */
 
-import { loadConfig, verify, appendResult, readResults, generatePromptContext } from '@canductor/core';
+import {
+  loadConfig,
+  verify,
+  appendResult,
+  readResults,
+  generatePromptContext,
+  injectContext,
+  suggestRuleImprovements,
+} from '@canductor/core';
 import { writeFileSync, existsSync, mkdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 
 const args = process.argv.slice(2);
 const command = args[0];
@@ -27,6 +37,8 @@ Usage:
   canductor score [ref]      Run layers, print composite score only
   canductor history          Show results history table
   canductor context          Generate quality context for agent prompts
+  canductor inject <file>    Inject quality context into a file (e.g. CLAUDE.md)
+  canductor suggest          Suggest rule improvements based on history
   canductor init             Create starter config
   canductor help             Show this message
 `);
@@ -87,10 +99,10 @@ policy:
   console.log('Edit the config to match your project, then run: canductor verify');
 }
 
-function cmdVerify(): void {
+async function cmdVerify(): Promise<void> {
   const ref = args[1] ?? 'HEAD';
   const config = loadConfig(repoRoot);
-  const result = verify(ref, config);
+  const result = await verify(ref, config);
 
   console.log(result.summary);
   console.log(`\nComposite score: ${result.composite_score}/100`);
@@ -100,10 +112,10 @@ function cmdVerify(): void {
   console.log('\nResult logged to .canductor/results.tsv');
 }
 
-function cmdScore(): void {
+async function cmdScore(): Promise<void> {
   const ref = args[1] ?? 'HEAD';
   const config = loadConfig(repoRoot);
-  const result = verify(ref, config);
+  const result = await verify(ref, config);
   console.log(result.composite_score);
 }
 
@@ -126,30 +138,77 @@ function cmdContext(): void {
   console.log(context);
 }
 
-switch (command) {
-  case 'verify':
-    cmdVerify();
-    break;
-  case 'score':
-    cmdScore();
-    break;
-  case 'history':
-    cmdHistory();
-    break;
-  case 'context':
-    cmdContext();
-    break;
-  case 'init':
-    cmdInit();
-    break;
-  case 'help':
-  case '--help':
-  case '-h':
-  case undefined:
-    printUsage();
-    break;
-  default:
-    console.error(`Unknown command: ${command}`);
-    printUsage();
+function cmdInject(): void {
+  const targetArg = args[1];
+  if (!targetArg) {
+    console.error('Usage: canductor inject <target-file>');
+    console.error('Example: canductor inject CLAUDE.md');
     process.exit(1);
+  }
+
+  const targetFile = resolve(repoRoot, targetArg);
+  const modified = injectContext(repoRoot, targetFile);
+
+  if (modified) {
+    console.log(`Injected quality context into ${targetArg}`);
+  } else {
+    console.log(`${targetArg} is already up to date`);
+  }
 }
+
+function cmdSuggest(): void {
+  const improvements = suggestRuleImprovements(repoRoot);
+
+  if (improvements.length === 0) {
+    console.log('No rule improvements suggested. Build more history with: canductor verify');
+    return;
+  }
+
+  for (const imp of improvements) {
+    const confidencePct = Math.round(imp.confidence * 100);
+    console.log(`[${imp.type}] (${confidencePct}% confidence) ${imp.description}`);
+    console.log(`  Content:\n${imp.content.split('\n').map(l => `    ${l}`).join('\n')}`);
+    console.log('');
+  }
+}
+
+async function main(): Promise<void> {
+  switch (command) {
+    case 'verify':
+      await cmdVerify();
+      break;
+    case 'score':
+      await cmdScore();
+      break;
+    case 'history':
+      cmdHistory();
+      break;
+    case 'context':
+      cmdContext();
+      break;
+    case 'inject':
+      cmdInject();
+      break;
+    case 'suggest':
+      cmdSuggest();
+      break;
+    case 'init':
+      cmdInit();
+      break;
+    case 'help':
+    case '--help':
+    case '-h':
+    case undefined:
+      printUsage();
+      break;
+    default:
+      console.error(`Unknown command: ${command}`);
+      printUsage();
+      process.exit(1);
+  }
+}
+
+main().catch(err => {
+  console.error(err);
+  process.exit(1);
+});

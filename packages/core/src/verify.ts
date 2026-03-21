@@ -5,6 +5,7 @@
 
 import type { CanductorConfig, LayerResult, VerifyResult } from './types.js';
 import { runLayer } from './layers.js';
+import { buildPolicyContext, evaluateAllPolicies } from './policy.js';
 
 /** Compute weighted composite score from layer results. */
 export function computeCompositeScore(
@@ -29,34 +30,23 @@ export function computeCompositeScore(
 /**
  * Evaluate the policy to determine the decision.
  *
- * Policy expressions are simple boolean conditions:
- *   "all_deterministic_pass AND composite_score >= 80"
+ * Delegates to the expression parser in policy.ts which evaluates
+ * the policy strings from config.yaml against a PolicyContext.
  *
- * For v1, we use a simplified evaluator. A full expression
- * parser can come later.
+ * @param results - Layer results from running all verification layers.
+ * @param compositeScore - Weighted composite score (0-100).
+ * @param config - Full canductor configuration including policy expressions.
+ * @param baseline - Current baseline score (default 0). Used for
+ *   expressions like "composite_score >= baseline".
  */
 export function evaluatePolicy(
   results: LayerResult[],
   compositeScore: number,
-  config: CanductorConfig
+  config: CanductorConfig,
+  baseline: number = 0
 ): 'auto_merge' | 'human_review' | 'block' {
-  const allDeterministicPass = results
-    .filter(r => r.type === 'deterministic')
-    .every(r => r.pass);
-
-  const anyDeterministicFail = results
-    .some(r => r.type === 'deterministic' && !r.pass);
-
-  const allPass = results.every(r => r.pass);
-
-  // Block takes priority
-  if (anyDeterministicFail) return 'block';
-
-  // Auto-merge if everything passes
-  if (allDeterministicPass && allPass) return 'auto_merge';
-
-  // Otherwise human review
-  return 'human_review';
+  const context = buildPolicyContext(results, compositeScore, baseline);
+  return evaluateAllPolicies(config, context);
 }
 
 /** Build a human-readable summary of the verification. */
@@ -73,11 +63,11 @@ function buildSummary(results: LayerResult[], decision: string): string {
 }
 
 /** Run all verification layers and return a complete result. */
-export function verify(ref: string, config: CanductorConfig): VerifyResult {
+export async function verify(ref: string, config: CanductorConfig): Promise<VerifyResult> {
   const results: LayerResult[] = [];
 
   for (const [name, layerConfig] of Object.entries(config.layers)) {
-    const result = runLayer({ ...layerConfig, name });
+    const result = await runLayer({ ...layerConfig, name });
     results.push(result);
   }
 

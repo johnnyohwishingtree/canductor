@@ -79,6 +79,22 @@ export interface ResultRow {
   description: string;
 }
 
+/** Result of an agent review (LLM-evaluated). */
+export interface AgentReviewResult {
+  pass: boolean;
+  score: number;        // 0-100
+  issues: Array<{ severity: 'critical' | 'high' | 'medium' | 'low'; description: string }>;
+  summary: string;
+}
+
+/** A suggested improvement to quality rules based on results history. */
+export interface RuleImprovement {
+  type: 'add_rule' | 'add_rubric_check' | 'update_baseline';
+  description: string;
+  content: string;  // The actual rule/check content to add
+  confidence: number; // 0-1, based on how many times the pattern was seen
+}
+
 /** Context injected into agent prompts based on results history. */
 export interface QualityContext {
   /** Recent results summary. */

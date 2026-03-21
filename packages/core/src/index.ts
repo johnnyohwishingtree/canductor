@@ -2,6 +2,12 @@ export { loadConfig, findConfigPath } from './config.js';
 export { verify, computeCompositeScore, evaluatePolicy } from './verify.js';
 export { runLayer, runDeterministicLayer, runScreenshotDiffLayer, runAgentReviewLayer } from './layers.js';
 export { readResults, appendResult, analyzeResults, generatePromptContext } from './results.js';
+export { compareScreenshots, updateBaseline } from './screenshot.js';
+export type { ScreenshotDiffResult } from './screenshot.js';
+export { evaluateExpression, evaluateAllPolicies, buildPolicyContext } from './policy.js';
+export type { PolicyContext } from './policy.js';
+export { runAgentReview } from './agent-review.js';
+export { injectContext, suggestRuleImprovements } from './feedback.js';
 export type {
   CanductorConfig,
   LayerConfig,
@@ -10,4 +16,6 @@ export type {
   VerifyResult,
   ResultRow,
   QualityContext,
+  AgentReviewResult,
+  RuleImprovement,
 } from './types.js';
