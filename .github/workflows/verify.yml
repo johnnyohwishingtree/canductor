@@ -1,0 +1,46 @@
+name: Verify
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        required: true
+        type: string
+      issue_number:
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install -g pnpm && pnpm install
+
+      - name: Build canductor
+        run: pnpm build
+
+      - name: Run canductor verify
+        run: npx canductor verify "${{ inputs.branch }}"
+
+      - name: Post results
+        if: inputs.issue_number != ''
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          SCORE=$(npx canductor score "${{ inputs.branch }}")
+          gh issue comment "${{ inputs.issue_number }}" \
+            --body "Canductor verification: score **${SCORE}/100** on branch \`${{ inputs.branch }}\`"

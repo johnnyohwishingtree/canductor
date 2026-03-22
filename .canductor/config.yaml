@@ -1,0 +1,32 @@
+# Canductor evaluates itself.
+# This config defines what "good" means for the canductor codebase.
+version: 1
+
+layers:
+  typecheck:
+    name: typecheck
+    type: deterministic
+    run: "pnpm typecheck"
+    weight: 1.0
+
+  tests:
+    name: tests
+    type: deterministic
+    run: "pnpm test"
+    weight: 1.0
+
+  code_quality:
+    name: code_quality
+    type: agent-review
+    model: claude-sonnet-4-6
+    rubric: ".canductor/rubrics/canductor-code-quality.md"
+    context:
+      - "packages/core/src/"
+      - "packages/pipeline/src/"
+      - "packages/cli/src/"
+    weight: 0.6
+
+policy:
+  auto_merge: "all_deterministic_pass AND composite_score >= baseline"
+  human_review: "composite_score < baseline OR code_quality.has_issues"
+  block: "any_deterministic_fail"

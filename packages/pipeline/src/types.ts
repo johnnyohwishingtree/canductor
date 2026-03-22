@@ -1,0 +1,31 @@
+export type CanductorEvents = {
+  'canductor/issue.assigned': {
+    data: { issueNumber: number; repo: string; agent?: string };
+  };
+  'canductor/pr.opened': {
+    data: { prNumber: number; branch: string; repo: string };
+  };
+  'canductor/pr.reviewed': {
+    data: {
+      prNumber: number;
+      branch: string;
+      repo: string;
+      approved: boolean;
+      feedback?: string;
+    };
+  };
+  'canductor/ci.completed': {
+    data: {
+      prNumber: number;
+      branch: string;
+      repo: string;
+      passed: boolean;
+    };
+  };
+  'canductor/story.completed': {
+    data: { issueNumber: number; repo: string };
+  };
+  'canductor/verify.requested': {
+    data: { branch: string; repo: string; issueNumber?: number };
+  };
+};
