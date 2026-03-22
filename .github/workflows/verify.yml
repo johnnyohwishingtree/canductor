@@ -34,13 +34,16 @@ jobs:
         run: pnpm build
 
       - name: Run canductor verify
-        run: npx canductor verify "${{ inputs.branch }}"
+        id: verify
+        run: |
+          node packages/cli/dist/cli.js verify "${{ inputs.branch }}"
+          SCORE=$(node packages/cli/dist/cli.js score "${{ inputs.branch }}")
+          echo "score=$SCORE" >> "$GITHUB_OUTPUT"
 
       - name: Post results
         if: inputs.issue_number != ''
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
-          SCORE=$(npx canductor score "${{ inputs.branch }}")
           gh issue comment "${{ inputs.issue_number }}" \
-            --body "Canductor verification: score **${SCORE}/100** on branch \`${{ inputs.branch }}\`"
+            --body "Canductor verification: score **${{ steps.verify.outputs.score }}/100** on branch \`${{ inputs.branch }}\`"
