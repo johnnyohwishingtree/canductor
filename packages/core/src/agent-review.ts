@@ -1,12 +1,17 @@
 /**
  * Agent review — sends code + rubric to the Anthropic Claude API
  * and parses a structured quality verdict.
+ *
+ * Supports two modes:
+ * 1. API mode: When ANTHROPIC_API_KEY is set, calls Claude API directly
+ * 2. Self-review mode: When no API key, builds the review prompt for
+ *    the parent Claude Code session to evaluate inline
  */
 
 import Anthropic from '@anthropic-ai/sdk';
 import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { join, extname } from 'node:path';
-import type { AgentReviewResult } from './types.js';
+import type { AgentReviewResult, SelfReviewPrompt } from './types.js';
 
 const SYSTEM_PROMPT = `You are a code quality reviewer. Evaluate the provided code against the rubric criteria.
 Respond with ONLY a JSON object matching this schema:
@@ -88,6 +93,72 @@ function readFilesWithLimit(
 }
 
 /**
+ * Build the review prompt from a rubric file and context paths.
+ * Reused by both API mode and self-review mode.
+ *
+ * Returns null if the rubric file cannot be read.
+ */
+export function buildReviewPrompt(
+  rubric: string,
+  context: string[]
+): SelfReviewPrompt | null {
+  let rubricContent: string;
+  try {
+    rubricContent = readFileSync(rubric, 'utf-8');
+  } catch {
+    return null;
+  }
+
+  const allPaths: string[] = [];
+  for (const ctx of context) {
+    if (!existsSync(ctx)) continue;
+    const stat = statSync(ctx);
+    if (stat.isDirectory()) {
+      collectFiles(ctx, allPaths);
+    } else {
+      allPaths.push(ctx);
+    }
+  }
+
+  const contextFiles = readFilesWithLimit(allPaths);
+  const contextBlock = contextFiles
+    .map(f => `### ${f.path}\n\`\`\`\n${f.content}\n\`\`\``)
+    .join('\n\n');
+
+  const userPrompt = `## Rubric\n\n${rubricContent}\n\n## Code to Review\n\n${contextBlock}`;
+
+  return {
+    systemPrompt: SYSTEM_PROMPT,
+    userPrompt,
+    rubricContent,
+    contextFileCount: contextFiles.length,
+  };
+}
+
+/**
+ * Parse a JSON string (possibly wrapped in markdown code blocks) into
+ * an AgentReviewResult. Returns a validated/normalized result.
+ *
+ * Throws if the JSON is unparseable.
+ */
+export function parseReviewJson(raw: string): AgentReviewResult {
+  let jsonStr = raw.trim();
+  const codeBlockMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (codeBlockMatch) {
+    jsonStr = codeBlockMatch[1].trim();
+  }
+
+  const parsed = JSON.parse(jsonStr) as AgentReviewResult;
+
+  return {
+    pass: typeof parsed.pass === 'boolean' ? parsed.pass : parsed.score >= 80,
+    score: Math.max(0, Math.min(100, typeof parsed.score === 'number' ? parsed.score : 0)),
+    issues: Array.isArray(parsed.issues) ? parsed.issues : [],
+    summary: typeof parsed.summary === 'string' ? parsed.summary : 'Agent review complete',
+  };
+}
+
+/**
  * Run an agent review by calling the Anthropic Claude API.
  *
  * @param rubric  - Path to the rubric markdown file
@@ -109,11 +180,8 @@ export async function runAgentReview(
     };
   }
 
-  // Read the rubric
-  let rubricContent: string;
-  try {
-    rubricContent = readFileSync(rubric, 'utf-8');
-  } catch {
+  const prompt = buildReviewPrompt(rubric, context);
+  if (!prompt) {
     return {
       pass: true,
       score: 0,
@@ -122,35 +190,14 @@ export async function runAgentReview(
     };
   }
 
-  // Collect and read context files
-  const allPaths: string[] = [];
-  for (const ctx of context) {
-    if (!existsSync(ctx)) continue;
-    const stat = statSync(ctx);
-    if (stat.isDirectory()) {
-      collectFiles(ctx, allPaths);
-    } else {
-      allPaths.push(ctx);
-    }
-  }
-
-  const contextFiles = readFilesWithLimit(allPaths);
-
-  // Build the user prompt
-  const contextBlock = contextFiles
-    .map(f => `### ${f.path}\n\`\`\`\n${f.content}\n\`\`\``)
-    .join('\n\n');
-
-  const userPrompt = `## Rubric\n\n${rubricContent}\n\n## Code to Review\n\n${contextBlock}`;
-
   // Call the Anthropic API
   try {
     const client = new Anthropic();
     const message = await client.messages.create({
       model,
       max_tokens: 1024,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: userPrompt }],
+      system: prompt.systemPrompt,
+      messages: [{ role: 'user', content: prompt.userPrompt }],
     });
 
     // Extract text from response
@@ -164,22 +211,7 @@ export async function runAgentReview(
       };
     }
 
-    // Parse JSON from response (handle markdown code blocks)
-    let jsonStr = textBlock.text.trim();
-    const codeBlockMatch = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
-    if (codeBlockMatch) {
-      jsonStr = codeBlockMatch[1].trim();
-    }
-
-    const parsed = JSON.parse(jsonStr) as AgentReviewResult;
-
-    // Validate and normalize the result
-    return {
-      pass: typeof parsed.pass === 'boolean' ? parsed.pass : parsed.score >= 80,
-      score: Math.max(0, Math.min(100, typeof parsed.score === 'number' ? parsed.score : 0)),
-      issues: Array.isArray(parsed.issues) ? parsed.issues : [],
-      summary: typeof parsed.summary === 'string' ? parsed.summary : 'Agent review complete',
-    };
+    return parseReviewJson(textBlock.text);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     return {

@@ -28,7 +28,10 @@ import {
   getTrend,
   computeAutoBaseline,
   getBaseline,
+  getAgentReviewPrompt,
+  parseReviewJson,
 } from '@canductor/core';
+import type { AgentReviewResult } from '@canductor/core';
 import { writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
@@ -40,20 +43,22 @@ function printUsage(): void {
   console.log(`canductor — quality verification for agentic output
 
 Usage:
-  canductor verify [ref]        Run all layers, log result, print decision
-  canductor score [ref]         Run layers, print composite score only
-  canductor status              Show pipeline health overview
-  canductor trend [--last N]    Show quality trend over last N results (default 10)
-  canductor history             Show results history table
-  canductor diff <ref1> <ref2>  Compare quality scores between two refs
-  canductor baseline             Show current quality baseline
-  canductor baseline --set N    Set baseline override to N
-  canductor baseline --auto     Set baseline from last 5 merged scores
-  canductor context             Generate quality context for agent prompts
-  canductor inject <file>       Inject quality context into a file (e.g. CLAUDE.md)
-  canductor suggest             Suggest rule improvements based on history
-  canductor init                Create starter config
-  canductor help                Show this message
+  canductor verify [ref]                     Run all layers, log result, print decision
+  canductor verify [ref] --self-review       Output review prompt for agent-review layers (no API key needed)
+  canductor verify [ref] --review-json <j>   Use pre-evaluated review JSON for agent-review layers
+  canductor score [ref]                      Run layers, print composite score only
+  canductor status                           Show pipeline health overview
+  canductor trend [--last N]                 Show quality trend over last N results (default 10)
+  canductor history                          Show results history table
+  canductor diff <ref1> <ref2>               Compare quality scores between two refs
+  canductor baseline                         Show current quality baseline
+  canductor baseline --set N                 Set baseline override to N
+  canductor baseline --auto                  Set baseline from last 5 merged scores
+  canductor context                          Generate quality context for agent prompts
+  canductor inject <file>                    Inject quality context into a file (e.g. CLAUDE.md)
+  canductor suggest                          Suggest rule improvements based on history
+  canductor init                             Create starter config
+  canductor help                             Show this message
 `);
 }
 
@@ -113,10 +118,55 @@ policy:
 }
 
 async function cmdVerify(): Promise<void> {
-  const ref = args[1] ?? 'HEAD';
+  const ref = args[1] && !args[1].startsWith('--') ? args[1] : 'HEAD';
   const jsonMode = args.includes('--json');
+  const selfReviewMode = args.includes('--self-review');
+  const reviewJsonIdx = args.indexOf('--review-json');
   const config = loadConfig(repoRoot);
-  const result = await verify(ref, config);
+
+  // Self-review mode: output the review prompt for agent-review layers and exit
+  if (selfReviewMode) {
+    let foundPrompt = false;
+    for (const [name, layerConfig] of Object.entries(config.layers)) {
+      if (layerConfig.type !== 'agent-review') continue;
+      const prompt = getAgentReviewPrompt({ ...layerConfig, name });
+      if (!prompt) {
+        console.error(`Could not build review prompt for layer "${name}"`);
+        continue;
+      }
+      foundPrompt = true;
+      console.log(`=== CANDUCTOR SELF-REVIEW: ${name} ===`);
+      console.log('Evaluate the following code against this rubric and respond with JSON:');
+      console.log('{"pass": boolean, "score": 0-100, "issues": [...], "summary": "..."}');
+      console.log('');
+      console.log(prompt.userPrompt);
+      console.log(`=== END SELF-REVIEW: ${name} ===`);
+    }
+    if (!foundPrompt) {
+      console.log('No agent-review layers found in config.');
+    }
+    return;
+  }
+
+  // Review-json mode: parse provided JSON for agent-review layers
+  let selfReviewResults: Record<string, AgentReviewResult> | undefined;
+  if (reviewJsonIdx !== -1) {
+    const rawJson = args[reviewJsonIdx + 1];
+    if (!rawJson) {
+      console.error('--review-json requires a JSON argument');
+      process.exit(1);
+    }
+    const parsed = parseReviewJson(rawJson);
+    // Apply the parsed result to all agent-review layers
+    selfReviewResults = {};
+    for (const [name, layerConfig] of Object.entries(config.layers)) {
+      if (layerConfig.type === 'agent-review') {
+        selfReviewResults[name] = parsed;
+      }
+    }
+  }
+
+  const result = await verify(ref, config, selfReviewResults);
 
   if (jsonMode) {
     console.log(JSON.stringify({

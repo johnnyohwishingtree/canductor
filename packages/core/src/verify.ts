@@ -3,7 +3,7 @@
  * evaluates policy, returns a decision.
  */
 
-import type { CanductorConfig, LayerResult, VerifyResult } from './types.js';
+import type { CanductorConfig, LayerResult, VerifyResult, AgentReviewResult } from './types.js';
 import { runLayer } from './layers.js';
 import { buildPolicyContext, evaluateAllPolicies } from './policy.js';
 
@@ -62,12 +62,24 @@ function buildSummary(results: LayerResult[], decision: string): string {
   return `Decision: ${decision}\n${lines.join('\n')}`;
 }
 
-/** Run all verification layers and return a complete result. */
-export async function verify(ref: string, config: CanductorConfig): Promise<VerifyResult> {
+/**
+ * Run all verification layers and return a complete result.
+ *
+ * @param ref - Git ref (PR number, branch, or commit)
+ * @param config - Canductor configuration
+ * @param selfReviewResults - Optional map of layer name → pre-evaluated agent review result.
+ *   Used in self-review mode to inject results from the parent Claude session.
+ */
+export async function verify(
+  ref: string,
+  config: CanductorConfig,
+  selfReviewResults?: Record<string, AgentReviewResult>
+): Promise<VerifyResult> {
   const results: LayerResult[] = [];
 
   for (const [name, layerConfig] of Object.entries(config.layers)) {
-    const result = await runLayer({ ...layerConfig, name });
+    const reviewResult = selfReviewResults?.[name];
+    const result = await runLayer({ ...layerConfig, name }, reviewResult);
     results.push(result);
   }
 

@@ -89,6 +89,14 @@ export interface AgentReviewResult {
   summary: string;
 }
 
+/** Structured prompt for self-review mode (no API key). */
+export interface SelfReviewPrompt {
+  systemPrompt: string;
+  userPrompt: string;
+  rubricContent: string;
+  contextFileCount: number;
+}
+
 /** A suggested improvement to quality rules based on results history. */
 export interface RuleImprovement {
   type: 'add_rule' | 'add_rubric_check' | 'update_baseline';

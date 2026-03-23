@@ -4,8 +4,8 @@
 
 import { execSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import type { LayerConfig, LayerResult } from './types.js';
-import { runAgentReview } from './agent-review.js';
+import type { LayerConfig, LayerResult, AgentReviewResult, SelfReviewPrompt } from './types.js';
+import { runAgentReview, buildReviewPrompt } from './agent-review.js';
 import { compareScreenshots } from './screenshot.js';
 
 /** Run a deterministic layer (shell command, pass/fail). */
@@ -117,8 +117,17 @@ export function runScreenshotDiffLayer(layer: LayerConfig): LayerResult {
   };
 }
 
-/** Run an agent-review layer (send context + rubric to LLM, parse verdict). */
-export async function runAgentReviewLayer(layer: LayerConfig): Promise<LayerResult> {
+/**
+ * Run an agent-review layer (send context + rubric to LLM, parse verdict).
+ *
+ * @param layer - Layer configuration
+ * @param selfReviewResult - Pre-evaluated result for self-review mode.
+ *   When provided, skips the API call and uses this result directly.
+ */
+export async function runAgentReviewLayer(
+  layer: LayerConfig,
+  selfReviewResult?: AgentReviewResult
+): Promise<LayerResult> {
   const start = Date.now();
 
   if (!layer.rubric) {
@@ -128,6 +137,18 @@ export async function runAgentReviewLayer(layer: LayerConfig): Promise<LayerResu
       pass: true,
       score: 100,
       errors: 'No rubric file specified — skipping agent review',
+      duration_ms: Date.now() - start,
+    };
+  }
+
+  // Use pre-evaluated result if provided (self-review mode)
+  if (selfReviewResult) {
+    return {
+      name: layer.name,
+      type: 'agent-review',
+      pass: selfReviewResult.pass,
+      score: selfReviewResult.score,
+      errors: selfReviewResult.issues.map(i => `[${i.severity}] ${i.description}`).join('\n') || selfReviewResult.summary,
       duration_ms: Date.now() - start,
     };
   }
@@ -147,15 +168,32 @@ export async function runAgentReviewLayer(layer: LayerConfig): Promise<LayerResu
   };
 }
 
-/** Dispatch to the correct layer executor based on type. */
-export async function runLayer(layer: LayerConfig): Promise<LayerResult> {
+/**
+ * Build the self-review prompt for an agent-review layer.
+ * Returns null if the layer has no rubric or the rubric can't be read.
+ */
+export function getAgentReviewPrompt(layer: LayerConfig): SelfReviewPrompt | null {
+  if (!layer.rubric) return null;
+  return buildReviewPrompt(layer.rubric, layer.context ?? []);
+}
+
+/**
+ * Dispatch to the correct layer executor based on type.
+ *
+ * @param layer - Layer configuration
+ * @param selfReviewResult - Optional pre-evaluated result for agent-review layers
+ */
+export async function runLayer(
+  layer: LayerConfig,
+  selfReviewResult?: AgentReviewResult
+): Promise<LayerResult> {
   switch (layer.type) {
     case 'deterministic':
       return runDeterministicLayer(layer);
     case 'screenshot-diff':
       return runScreenshotDiffLayer(layer);
     case 'agent-review':
-      return runAgentReviewLayer(layer);
+      return runAgentReviewLayer(layer, selfReviewResult);
     default:
       return {
         name: layer.name,
