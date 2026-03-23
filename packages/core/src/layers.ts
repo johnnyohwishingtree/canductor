@@ -7,6 +7,7 @@ import { existsSync } from 'node:fs';
 import type { LayerConfig, LayerResult, AgentReviewResult, SelfReviewPrompt } from './types.js';
 import { runAgentReview, buildReviewPrompt } from './agent-review.js';
 import { compareScreenshots } from './screenshot.js';
+import { runGuardrailLayer } from './guardrail.js';
 
 /** Run a deterministic layer (shell command, pass/fail). */
 export function runDeterministicLayer(layer: LayerConfig): LayerResult {
@@ -194,6 +195,8 @@ export async function runLayer(
       return runScreenshotDiffLayer(layer);
     case 'agent-review':
       return runAgentReviewLayer(layer, selfReviewResult);
+    case 'guardrail':
+      return runGuardrailLayer(layer, process.cwd());
     default:
       return {
         name: layer.name,

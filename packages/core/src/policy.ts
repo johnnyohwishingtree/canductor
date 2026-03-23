@@ -344,12 +344,14 @@ export function buildPolicyContext(
   compositeScore: number,
   baseline: number
 ): PolicyContext {
+  const deterministicTypes: string[] = ['deterministic', 'guardrail'];
+
   const allDeterministicPass = results
-    .filter(r => r.type === 'deterministic')
+    .filter(r => deterministicTypes.includes(r.type))
     .every(r => r.pass);
 
   const anyDeterministicFail = results
-    .some(r => r.type === 'deterministic' && !r.pass);
+    .some(r => deterministicTypes.includes(r.type) && !r.pass);
 
   const allPass = results.every(r => r.pass);
 
