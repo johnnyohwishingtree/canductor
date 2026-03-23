@@ -34,6 +34,7 @@ import {
   detectToolchain,
   scaffoldRubric,
   runFirstVerification,
+  lintSkills,
 } from '@canductor/core';
 import type { AgentReviewResult } from '@canductor/core';
 import { writeFileSync, existsSync, mkdirSync } from 'node:fs';
@@ -63,6 +64,7 @@ Usage:
   canductor inject <file>                    Inject quality context into a file (e.g. CLAUDE.md)
   canductor suggest                          Suggest rule improvements based on history
   canductor init                             Create starter config
+  canductor skill-lint                       Validate SKILL.md frontmatter
   canductor help                             Show this message
 `);
 }
@@ -453,6 +455,31 @@ function cmdSuggest(): void {
   }
 }
 
+function cmdSkillLint(): void {
+  const results = lintSkills(repoRoot);
+
+  if (results.length === 0) {
+    console.log('No SKILL.md files found under .claude/skills/');
+    return;
+  }
+
+  let hasErrors = false;
+  for (const result of results) {
+    const status = result.valid ? 'PASS' : 'FAIL';
+    console.log(`  ${status} ${result.path}`);
+    for (const error of result.errors) {
+      console.log(`       ${error}`);
+    }
+    if (!result.valid) hasErrors = true;
+  }
+
+  console.log(`\n${results.length} skill(s) checked, ${results.filter(r => !r.valid).length} error(s)`);
+
+  if (hasErrors) {
+    process.exit(1);
+  }
+}
+
 async function main(): Promise<void> {
   switch (command) {
     case 'verify':
@@ -490,6 +517,9 @@ async function main(): Promise<void> {
       break;
     case 'init':
       await cmdInit();
+      break;
+    case 'skill-lint':
+      cmdSkillLint();
       break;
     case 'help':
     case '--help':

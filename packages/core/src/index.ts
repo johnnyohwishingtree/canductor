@@ -10,6 +10,7 @@ export type { PolicyContext } from './policy.js';
 export { runAgentReview, buildReviewPrompt, parseReviewJson } from './agent-review.js';
 export { injectContext, suggestRuleImprovements } from './feedback.js';
 export { detectToolchain, scaffoldRubric, runFirstVerification } from './scaffold.js';
+export { parseSkillFrontmatter, validateSkillFrontmatter, discoverSkills, lintSkills } from './skill-lint.js';
 export type {
   CanductorConfig,
   LayerConfig,
@@ -22,4 +23,6 @@ export type {
   SelfReviewPrompt,
   RuleImprovement,
   ProjectToolchain,
+  SkillFrontmatter,
+  SkillLintResult,
 } from './types.js';
