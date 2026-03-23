@@ -1,0 +1,2 @@
+ref	timestamp	composite_score	decision	layer_scores	status	description
+pipeline-migration	2026-03-23T18:17:24.970Z	77	auto_merge	typecheck:100,tests:100,code_quality:0	pending	Verified pipeline-migration
