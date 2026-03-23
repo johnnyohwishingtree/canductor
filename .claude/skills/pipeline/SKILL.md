@@ -96,24 +96,36 @@ pnpm build && pnpm typecheck && pnpm test
 
 If any fail, read the errors, fix them, and re-run. Do not proceed until both pass.
 
-Then self-review against the rubric at `.canductor/rubrics/canductor-code-quality.md`:
+Then run the self-review. First, get the review prompt:
+```bash
+node packages/cli/dist/cli.js verify --self-review
+```
+
+This outputs the rubric and code context for each agent-review layer. Read the output carefully and evaluate the code against the rubric criteria:
 - **Architecture (30%)**: small functions, correct dependency direction, no `any`, explicit error handling
 - **Verification Engine (25%)**: layers composable and independent, results log consistent
 - **Testing (25%)**: new functions have tests, happy path + at least one error path
 - **Code Style (20%)**: strict mode passes, no unused imports, barrel exports, camelCase/PascalCase
 
-Score yourself honestly (0-100). If below 80, identify the specific issues, fix them, and re-score.
-
-Once you believe the code is ready, run canductor verify:
-```bash
-node packages/cli/dist/cli.js verify "$NUMBER"
+Produce a JSON result:
+```json
+{"pass": true/false, "score": 0-100, "issues": [{"severity": "critical|high|medium|low", "description": "..."}], "summary": "..."}
 ```
+
+A score of 80+ means pass. If below 80, fix the issues first, then re-score.
+
+Once the code is ready, run the full verification with your review result injected:
+```bash
+node packages/cli/dist/cli.js verify "$NUMBER" --review-json '{"pass":true,"score":85,"issues":[],"summary":"Clean implementation"}'
+```
+
+This runs all layers (typecheck, tests, code_quality) with your self-review score included in the composite. The `code_quality` layer gets a real score instead of "Skipped."
 
 Read the decision:
 - **`auto_merge`**: proceed to Step 6.
 - **`block`** or **`human_review`**: read the error summary, fix the issues, and loop back to the top of Step 5. This counts as your next attempt.
 
-**You have up to 6 attempts.** Each attempt: fix -> typecheck -> test -> rubric review -> canductor verify. Use the error output from each failed verify to guide your fixes.
+**You have up to 6 attempts.** Each attempt: fix -> typecheck -> test -> self-review -> canductor verify with --review-json. Use the error output from each failed verify to guide your fixes.
 
 ### Step 5b: If verification fails after 6 attempts — discard
 
