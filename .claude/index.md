@@ -10,6 +10,7 @@ Read this file first. It maps every artifact in the pipeline system. Only read i
 | `rules/commit-gate.md` | Run build + typecheck + tests before every commit |
 | `rules/file-conventions.md` | Project structure, `.claude/` vs `.canductor/` layout, naming |
 | `rules/update-index.md` | Update this index when `.claude/` files change |
+| `rules/quality-verification.md` | Run canductor verify before merging, log results after |
 
 ## Templates + Rubric Pairs
 
