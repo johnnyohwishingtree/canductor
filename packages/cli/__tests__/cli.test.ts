@@ -236,6 +236,133 @@ describe('canductor status', () => {
   });
 });
 
+describe('canductor skill-lint', () => {
+  let lintDir: string;
+
+  beforeEach(() => {
+    lintDir = join(TEST_DIR, `skill-lint-${Date.now()}`);
+    mkdirSync(lintDir, { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(lintDir, { recursive: true, force: true });
+  });
+
+  it('outputs PASS for valid SKILL.md files', () => {
+    const skillDir = join(lintDir, '.claude', 'skills', 'test-skill');
+    mkdirSync(skillDir, { recursive: true });
+    writeFileSync(join(skillDir, 'SKILL.md'), [
+      '---',
+      'name: test-skill',
+      'description: A test skill',
+      '---',
+      '',
+      '# /test-skill',
+      '',
+      'This skill does testing.',
+      '',
+      '## Usage',
+      '```',
+      '/test-skill',
+      '```',
+      '',
+    ].join('\n'));
+
+    const { stdout, exitCode } = runCli('skill-lint', lintDir);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('PASS');
+  });
+
+  it('outputs FAIL for invalid SKILL.md files', () => {
+    const skillDir = join(lintDir, '.claude', 'skills', 'bad-skill');
+    mkdirSync(skillDir, { recursive: true });
+    // Missing frontmatter and required sections
+    writeFileSync(join(skillDir, 'SKILL.md'), 'Just some text\n');
+
+    const { stdout, exitCode } = runCli('skill-lint', lintDir);
+    expect(exitCode).toBe(1);
+    expect(stdout).toContain('FAIL');
+  });
+
+  it('outputs no skills message when no skills directory', () => {
+    const { stdout, exitCode } = runCli('skill-lint', lintDir);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('No SKILL.md files found');
+  });
+});
+
+describe('canductor verify with guardrail layer', () => {
+  let guardDir: string;
+
+  beforeEach(() => {
+    guardDir = join(TEST_DIR, `guardrail-verify-${Date.now()}`);
+    mkdirSync(guardDir, { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(guardDir, { recursive: true, force: true });
+  });
+
+  it('detects guardrail violations in output', () => {
+    const srcDir = join(guardDir, 'src');
+    mkdirSync(srcDir, { recursive: true });
+    writeFileSync(join(srcDir, 'bad.ts'), 'const x = eval("code");\n');
+
+    const guardrailConfig = `version: 1
+layers:
+  security:
+    name: security
+    type: guardrail
+    include:
+      - "src/**/*.ts"
+    patterns:
+      - pattern: "eval\\\\("
+        message: "Do not use eval()"
+    weight: 1.0
+policy:
+  auto_merge: "all_pass"
+  human_review: "any_agent_review_fail"
+  block: "any_deterministic_fail"
+`;
+    setupConfig(guardDir, guardrailConfig);
+
+    const { stdout, exitCode } = runCli('verify guard-ref', guardDir);
+    // Guardrails are treated as deterministic for policy — violation triggers block + exit 1
+    expect(exitCode).toBe(1);
+    expect(stdout).toContain('FAIL');
+    expect(stdout).toContain('eval(');
+  });
+
+  it('passes with clean guardrail layer', () => {
+    const srcDir = join(guardDir, 'src');
+    mkdirSync(srcDir, { recursive: true });
+    writeFileSync(join(srcDir, 'clean.ts'), 'const x = 42;\n');
+
+    const guardrailConfig = `version: 1
+layers:
+  security:
+    name: security
+    type: guardrail
+    include:
+      - "src/**/*.ts"
+    patterns:
+      - pattern: "eval\\\\("
+        message: "Do not use eval()"
+    weight: 1.0
+policy:
+  auto_merge: "all_pass"
+  human_review: "any_agent_review_fail"
+  block: "any_deterministic_fail"
+`;
+    setupConfig(guardDir, guardrailConfig);
+
+    const { stdout, exitCode } = runCli('verify guard-ref', guardDir);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('PASS');
+    expect(stdout).toContain('auto_merge');
+  });
+});
+
 describe('unknown command', () => {
   it('shows error and usage for unknown commands', () => {
     const { stdout, exitCode } = runCli('nonexistent');
