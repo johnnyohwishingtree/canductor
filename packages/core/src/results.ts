@@ -300,6 +300,75 @@ export function getStatus(repoRoot: string): PipelineStatus {
   };
 }
 
+/** A single entry in the trend output. */
+export interface TrendEntry {
+  ref: string;
+  score: number;
+  status: ResultRow['status'];
+}
+
+/** Result of getTrend(). */
+export interface TrendResult {
+  entries: TrendEntry[];
+  avg: number;
+  best: { score: number; refs: string[] };
+  worst: { score: number; refs: string[] };
+  direction: 'improving' | 'declining' | 'stable' | null;
+  /** Score delta from first to last entry. */
+  delta: number | null;
+}
+
+/**
+ * Compute a trend summary for the last N results.
+ */
+export function getTrend(repoRoot: string, last: number = 10): TrendResult {
+  const results = readResults(repoRoot);
+  const slice = results.slice(-last);
+
+  if (slice.length === 0) {
+    return {
+      entries: [],
+      avg: 0,
+      best: { score: 0, refs: [] },
+      worst: { score: 0, refs: [] },
+      direction: null,
+      delta: null,
+    };
+  }
+
+  const entries: TrendEntry[] = slice.map(r => ({
+    ref: r.ref,
+    score: r.composite_score,
+    status: r.status,
+  }));
+
+  const scores = entries.map(e => e.score);
+  const avg = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+  const bestScore = Math.max(...scores);
+  const worstScore = Math.min(...scores);
+  const bestRefs = entries.filter(e => e.score === bestScore).map(e => e.ref);
+  const worstRefs = entries.filter(e => e.score === worstScore).map(e => e.ref);
+
+  let direction: TrendResult['direction'] = null;
+  let delta: number | null = null;
+
+  if (entries.length >= 2) {
+    delta = entries[entries.length - 1].score - entries[0].score;
+    if (delta > 0) direction = 'improving';
+    else if (delta < 0) direction = 'declining';
+    else direction = 'stable';
+  }
+
+  return {
+    entries,
+    avg,
+    best: { score: bestScore, refs: bestRefs },
+    worst: { score: worstScore, refs: worstRefs },
+    direction,
+    delta,
+  };
+}
+
 /**
  * Generate a context block to inject into agent prompts.
  * This is what makes the agent "learn" from past results.

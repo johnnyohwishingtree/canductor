@@ -23,6 +23,7 @@ import {
   suggestRuleImprovements,
   diffResults,
   getStatus,
+  getTrend,
 } from '@canductor/core';
 import { writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -38,6 +39,7 @@ Usage:
   canductor verify [ref]        Run all layers, log result, print decision
   canductor score [ref]         Run layers, print composite score only
   canductor status              Show pipeline health overview
+  canductor trend [--last N]    Show quality trend over last N results (default 10)
   canductor history             Show results history table
   canductor diff <ref1> <ref2>  Compare quality scores between two refs
   canductor context             Generate quality context for agent prompts
@@ -203,6 +205,41 @@ function cmdDiff(): void {
   console.log('');
 }
 
+function cmdTrend(): void {
+  const lastIdx = args.indexOf('--last');
+  const last = lastIdx !== -1 && args[lastIdx + 1] ? parseInt(args[lastIdx + 1], 10) : 10;
+
+  const trend = getTrend(repoRoot, last);
+
+  if (trend.entries.length === 0) {
+    console.log('No results yet. Run: canductor verify');
+    return;
+  }
+
+  console.log(`Canductor Trend (last ${trend.entries.length} results)`);
+  console.log('==================================');
+
+  const BAR_WIDTH = 10;
+  for (const entry of trend.entries) {
+    const filled = Math.round(entry.score / 100 * BAR_WIDTH);
+    const bar = '█'.repeat(filled) + '░'.repeat(BAR_WIDTH - filled);
+    const ref = entry.ref.padEnd(6);
+    console.log(`${ref} ${entry.score}  ${bar}  ${entry.status}`);
+  }
+
+  console.log('');
+
+  const bestRefs = trend.best.refs.join(', ');
+  const worstRefs = trend.worst.refs.join(', ');
+  console.log(`Avg: ${trend.avg} | Best: ${trend.best.score} (${bestRefs}) | Worst: ${trend.worst.score} (${worstRefs})`);
+
+  if (trend.direction !== null && trend.delta !== null && trend.entries.length >= 2) {
+    const arrow = trend.direction === 'improving' ? '↑' : trend.direction === 'declining' ? '↓' : '→';
+    const sign = trend.delta >= 0 ? `+${trend.delta}` : `${trend.delta}`;
+    console.log(`Direction: ${arrow} ${trend.direction} (${sign} over ${trend.entries.length} runs)`);
+  }
+}
+
 function cmdStatus(): void {
   const s = getStatus(repoRoot);
 
@@ -282,6 +319,9 @@ async function main(): Promise<void> {
       break;
     case 'status':
       cmdStatus();
+      break;
+    case 'trend':
+      cmdTrend();
       break;
     case 'history':
       cmdHistory();
