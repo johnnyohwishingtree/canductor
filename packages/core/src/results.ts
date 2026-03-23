@@ -74,6 +74,42 @@ export function appendResult(
 }
 
 /**
+ * Update the status of a result row by ref.
+ * If multiple rows share the same ref, updates the last match.
+ * Returns true if a row was updated, false if ref not found.
+ */
+export function updateResultStatus(
+  repoRoot: string,
+  ref: string,
+  newStatus: ResultRow['status']
+): boolean {
+  const path = join(repoRoot, RESULTS_PATH);
+  if (!existsSync(path)) return false;
+
+  const content = readFileSync(path, 'utf-8');
+  const lines = content.trim().split('\n');
+  if (lines.length <= 1) return false;
+
+  // Find last matching row index (1-based, since index 0 is header)
+  let lastMatchIdx = -1;
+  for (let i = 1; i < lines.length; i++) {
+    const columns = lines[i].split('\t');
+    if (columns[0] === ref) {
+      lastMatchIdx = i;
+    }
+  }
+
+  if (lastMatchIdx === -1) return false;
+
+  const columns = lines[lastMatchIdx].split('\t');
+  columns[5] = newStatus; // status is the 6th column
+  lines[lastMatchIdx] = columns.join('\t');
+
+  writeFileSync(path, lines.join('\n') + '\n');
+  return true;
+}
+
+/**
  * Analyze results history to generate quality context for agent prompts.
  * This is the "learning" loop — patterns from past results inform future runs.
  */

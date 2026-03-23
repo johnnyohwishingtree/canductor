@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { appendResult, readResults, analyzeResults, generatePromptContext, diffResults, getStatus, getTrend, computeAutoBaseline, getBaseline } from '../src/results.js';
+import { appendResult, readResults, updateResultStatus, analyzeResults, generatePromptContext, diffResults, getStatus, getTrend, computeAutoBaseline, getBaseline } from '../src/results.js';
 import type { VerifyResult, CanductorConfig } from '../src/types.js';
 
 let tempDir: string;
@@ -51,6 +51,42 @@ describe('results log', () => {
 
   it('returns empty array when no file exists', () => {
     expect(readResults(tempDir)).toHaveLength(0);
+  });
+});
+
+describe('updateResultStatus', () => {
+  it('updates status of an existing row', () => {
+    appendResult(tempDir, makeVerifyResult('#1', 85, true), 'pending', 'first PR');
+
+    const updated = updateResultStatus(tempDir, '#1', 'merged');
+    expect(updated).toBe(true);
+
+    const rows = readResults(tempDir);
+    expect(rows[0].status).toBe('merged');
+  });
+
+  it('returns false when ref is not found', () => {
+    appendResult(tempDir, makeVerifyResult('#1', 85, true), 'pending', 'first PR');
+
+    const updated = updateResultStatus(tempDir, '#99', 'merged');
+    expect(updated).toBe(false);
+  });
+
+  it('updates the last matching row when multiple refs exist', () => {
+    appendResult(tempDir, makeVerifyResult('#1', 85, true), 'pending', 'first');
+    appendResult(tempDir, makeVerifyResult('#1', 90, true), 'pending', 'second');
+
+    const updated = updateResultStatus(tempDir, '#1', 'merged');
+    expect(updated).toBe(true);
+
+    const rows = readResults(tempDir);
+    expect(rows[0].status).toBe('pending');
+    expect(rows[1].status).toBe('merged');
+  });
+
+  it('returns false when results file does not exist', () => {
+    const updated = updateResultStatus(tempDir, '#1', 'merged');
+    expect(updated).toBe(false);
   });
 });
 
