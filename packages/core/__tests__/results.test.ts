@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { appendResult, readResults, analyzeResults, generatePromptContext, diffResults, getStatus, getTrend } from '../src/results.js';
-import type { VerifyResult } from '../src/types.js';
+import { appendResult, readResults, analyzeResults, generatePromptContext, diffResults, getStatus, getTrend, computeAutoBaseline, getBaseline } from '../src/results.js';
+import type { VerifyResult, CanductorConfig } from '../src/types.js';
 
 let tempDir: string;
 
@@ -303,6 +303,64 @@ describe('getTrend', () => {
     expect(trend.entries[0].status).toBe('merged');
     expect(trend.entries[1].status).toBe('rejected');
     expect(trend.entries[2].status).toBe('pending');
+  });
+});
+
+describe('computeAutoBaseline', () => {
+  it('returns 0 when no results exist', () => {
+    expect(computeAutoBaseline(tempDir)).toBe(0);
+  });
+
+  it('computes average of last 5 merged scores', () => {
+    for (let i = 1; i <= 5; i++) {
+      appendResult(tempDir, makeVerifyResult(`#${i}`, 80 + i, true), 'merged', `pr ${i}`);
+    }
+    // (81+82+83+84+85) / 5 = 83
+    expect(computeAutoBaseline(tempDir)).toBe(83);
+  });
+
+  it('ignores rejected results', () => {
+    appendResult(tempDir, makeVerifyResult('#1', 90, true), 'merged', 'good');
+    appendResult(tempDir, makeVerifyResult('#2', 20, false), 'rejected', 'bad');
+    appendResult(tempDir, makeVerifyResult('#3', 80, true), 'merged', 'ok');
+    // Only merged: (90+80)/2 = 85
+    expect(computeAutoBaseline(tempDir)).toBe(85);
+  });
+
+  it('only uses last 5 merged scores', () => {
+    for (let i = 1; i <= 8; i++) {
+      appendResult(tempDir, makeVerifyResult(`#${i}`, 50 + i * 5, true), 'merged', `pr ${i}`);
+    }
+    // Last 5 merged: 70,75,80,85,90 -> avg = 80
+    expect(computeAutoBaseline(tempDir)).toBe(80);
+  });
+});
+
+describe('getBaseline', () => {
+  const makeConfig = (baseline?: number): CanductorConfig => ({
+    version: 1,
+    layers: {},
+    policy: { auto_merge: 'true', human_review: 'false', block: 'false' },
+    ...(baseline !== undefined ? { baseline } : {}),
+  });
+
+  it('uses config override when present', () => {
+    appendResult(tempDir, makeVerifyResult('#1', 90, true), 'merged', 'good');
+    expect(getBaseline(tempDir, makeConfig(50))).toBe(50);
+  });
+
+  it('falls back to computed baseline when no config override', () => {
+    appendResult(tempDir, makeVerifyResult('#1', 90, true), 'merged', 'good');
+    expect(getBaseline(tempDir, makeConfig())).toBe(90);
+  });
+
+  it('falls back to computed baseline when config is null', () => {
+    appendResult(tempDir, makeVerifyResult('#1', 85, true), 'merged', 'good');
+    expect(getBaseline(tempDir, null)).toBe(85);
+  });
+
+  it('returns 0 when no config and no results', () => {
+    expect(getBaseline(tempDir, null)).toBe(0);
   });
 });
 

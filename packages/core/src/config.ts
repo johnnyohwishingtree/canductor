@@ -2,9 +2,9 @@
  * Config loader — reads .canductor/config.yaml from the repo.
  */
 
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { parse as parseYaml } from 'yaml';
+import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import { z } from 'zod';
 import type { CanductorConfig } from './types.js';
 
@@ -31,6 +31,7 @@ const ConfigSchema = z.object({
   version: z.literal(1),
   layers: z.record(LayerSchema),
   policy: PolicySchema,
+  baseline: z.number().min(0).max(100).optional(),
 });
 
 const CONFIG_PATHS = [
@@ -59,4 +60,22 @@ export function loadConfig(repoRoot: string): CanductorConfig {
   const raw = readFileSync(configPath, 'utf-8');
   const parsed = parseYaml(raw);
   return ConfigSchema.parse(parsed);
+}
+
+/**
+ * Write a baseline value to the config YAML file.
+ * Preserves existing config and adds/updates the baseline field.
+ */
+export function writeConfigBaseline(repoRoot: string, baseline: number): void {
+  const configPath = findConfigPath(repoRoot);
+  if (!configPath) {
+    throw new Error(
+      `No canductor config found. Run: canductor init`
+    );
+  }
+
+  const raw = readFileSync(configPath, 'utf-8');
+  const parsed = parseYaml(raw);
+  parsed.baseline = baseline;
+  writeFileSync(configPath, stringifyYaml(parsed));
 }

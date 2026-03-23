@@ -40,6 +40,8 @@ export interface CanductorConfig {
   version: 1;
   layers: Record<string, LayerConfig>;
   policy: PolicyConfig;
+  /** Optional baseline override. When set, takes precedence over computed baseline. */
+  baseline?: number;
 }
 
 /** Result of running a single verification layer. */

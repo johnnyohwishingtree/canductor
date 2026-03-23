@@ -7,7 +7,7 @@
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
-import type { ResultRow, VerifyResult, QualityContext } from './types.js';
+import type { ResultRow, VerifyResult, QualityContext, CanductorConfig } from './types.js';
 
 const RESULTS_PATH = '.canductor/results.tsv';
 const HEADER = 'ref\ttimestamp\tcomposite_score\tdecision\tlayer_scores\tstatus\tdescription';
@@ -367,6 +367,32 @@ export function getTrend(repoRoot: string, last: number = 10): TrendResult {
     direction,
     delta,
   };
+}
+
+/**
+ * Compute the auto-baseline from the last 5 merged scores.
+ * Returns 0 if there are no merged results.
+ */
+export function computeAutoBaseline(repoRoot: string): number {
+  const results = readResults(repoRoot);
+  const mergedScores = results
+    .filter(r => r.status === 'merged')
+    .map(r => r.composite_score)
+    .slice(-5);
+  return mergedScores.length > 0
+    ? Math.round(mergedScores.reduce((a, b) => a + b, 0) / mergedScores.length)
+    : 0;
+}
+
+/**
+ * Get the effective baseline score.
+ * If a config override exists, use that. Otherwise compute from results history.
+ */
+export function getBaseline(repoRoot: string, config: CanductorConfig | null): number {
+  if (config?.baseline !== undefined) {
+    return config.baseline;
+  }
+  return computeAutoBaseline(repoRoot);
 }
 
 /**
