@@ -15,6 +15,8 @@
 
 import {
   loadConfig,
+  findConfigPath,
+  writeConfigBaseline,
   verify,
   appendResult,
   readResults,
@@ -24,6 +26,8 @@ import {
   diffResults,
   getStatus,
   getTrend,
+  computeAutoBaseline,
+  getBaseline,
 } from '@canductor/core';
 import { writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -42,6 +46,9 @@ Usage:
   canductor trend [--last N]    Show quality trend over last N results (default 10)
   canductor history             Show results history table
   canductor diff <ref1> <ref2>  Compare quality scores between two refs
+  canductor baseline             Show current quality baseline
+  canductor baseline --set N    Set baseline override to N
+  canductor baseline --auto     Set baseline from last 5 merged scores
   canductor context             Generate quality context for agent prompts
   canductor inject <file>       Inject quality context into a file (e.g. CLAUDE.md)
   canductor suggest             Suggest rule improvements based on history
@@ -270,6 +277,45 @@ function cmdStatus(): void {
   }
 }
 
+function cmdBaseline(): void {
+  const setIdx = args.indexOf('--set');
+  const autoMode = args.includes('--auto');
+
+  if (setIdx !== -1) {
+    const val = args[setIdx + 1];
+    if (!val || isNaN(parseInt(val, 10))) {
+      console.error('Usage: canductor baseline --set <number>');
+      process.exit(1);
+    }
+    const score = parseInt(val, 10);
+    if (score < 0 || score > 100) {
+      console.error('Baseline must be between 0 and 100');
+      process.exit(1);
+    }
+    writeConfigBaseline(repoRoot, score);
+    console.log(`Baseline set to ${score}/100`);
+    return;
+  }
+
+  if (autoMode) {
+    const score = computeAutoBaseline(repoRoot);
+    writeConfigBaseline(repoRoot, score);
+    console.log(`Baseline set to ${score}/100 (computed from last 5 merged scores)`);
+    return;
+  }
+
+  // Show current baseline
+  let config = null;
+  try {
+    config = loadConfig(repoRoot);
+  } catch {
+    // no config file — that's fine, we'll compute from results
+  }
+  const baseline = getBaseline(repoRoot, config);
+  const source = config?.baseline !== undefined ? 'config override' : 'computed from last 5 merged scores';
+  console.log(`Current baseline: ${baseline}/100 (${source})`);
+}
+
 function cmdContext(): void {
   const context = generatePromptContext(repoRoot);
   console.log(context);
@@ -328,6 +374,9 @@ async function main(): Promise<void> {
       break;
     case 'diff':
       cmdDiff();
+      break;
+    case 'baseline':
+      cmdBaseline();
       break;
     case 'context':
       cmdContext();
