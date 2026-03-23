@@ -1,4 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { computeCompositeScore, evaluatePolicy, verify } from '../src/verify.js';
 import type { CanductorConfig, LayerResult, AgentReviewResult } from '../src/types.js';
 
@@ -244,5 +247,83 @@ describe('verify() integration', () => {
     const reviewLayer = result.layers.find(l => l.name === 'code_quality');
     expect(reviewLayer!.pass).toBe(false);
     expect(reviewLayer!.score).toBe(40);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// verify() with guardrail layer and repoRoot
+// ---------------------------------------------------------------------------
+describe('verify() guardrail repoRoot threading', () => {
+  let tempDir: string;
+
+  beforeEach(() => {
+    tempDir = mkdtempSync(join(tmpdir(), 'canductor-verify-guardrail-'));
+  });
+
+  afterEach(() => {
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it('passes repoRoot to guardrail layer for file scanning', async () => {
+    // Create a file with a violation in the temp dir
+    const srcDir = join(tempDir, 'src');
+    mkdirSync(srcDir, { recursive: true });
+    writeFileSync(join(srcDir, 'bad.ts'), 'const x = eval("code");\n');
+
+    const config: CanductorConfig = {
+      version: 1,
+      layers: {
+        security: {
+          name: 'security',
+          type: 'guardrail',
+          include: ['src/**/*.ts'],
+          patterns: [{ pattern: 'eval\\(', message: 'Do not use eval()' }],
+          weight: 1.0,
+        },
+      },
+      policy: {
+        auto_merge: 'all_pass',
+        human_review: 'any_agent_review_fail',
+        block: 'any_deterministic_fail',
+      },
+    };
+
+    // Pass tempDir as repoRoot — guardrail should scan tempDir/src/bad.ts
+    const result = await verify('guardrail-ref', config, undefined, tempDir);
+
+    expect(result.layers).toHaveLength(1);
+    expect(result.layers[0].type).toBe('guardrail');
+    expect(result.layers[0].pass).toBe(false);
+    expect(result.layers[0].errors).toContain('eval(');
+  });
+
+  it('guardrail passes when repoRoot has no violations', async () => {
+    const srcDir = join(tempDir, 'src');
+    mkdirSync(srcDir, { recursive: true });
+    writeFileSync(join(srcDir, 'clean.ts'), 'const x = 42;\n');
+
+    const config: CanductorConfig = {
+      version: 1,
+      layers: {
+        security: {
+          name: 'security',
+          type: 'guardrail',
+          include: ['src/**/*.ts'],
+          patterns: [{ pattern: 'eval\\(', message: 'Do not use eval()' }],
+          weight: 1.0,
+        },
+      },
+      policy: {
+        auto_merge: 'all_pass',
+        human_review: 'any_agent_review_fail',
+        block: 'any_deterministic_fail',
+      },
+    };
+
+    const result = await verify('clean-ref', config, undefined, tempDir);
+
+    expect(result.layers[0].pass).toBe(true);
+    expect(result.layers[0].score).toBe(100);
+    expect(result.decision).toBe('auto_merge');
   });
 });

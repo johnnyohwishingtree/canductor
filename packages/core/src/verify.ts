@@ -73,13 +73,14 @@ function buildSummary(results: LayerResult[], decision: string): string {
 export async function verify(
   ref: string,
   config: CanductorConfig,
-  selfReviewResults?: Record<string, AgentReviewResult>
+  selfReviewResults?: Record<string, AgentReviewResult>,
+  repoRoot?: string
 ): Promise<VerifyResult> {
   const results: LayerResult[] = [];
 
   for (const [name, layerConfig] of Object.entries(config.layers)) {
     const reviewResult = selfReviewResults?.[name];
-    const result = await runLayer({ ...layerConfig, name }, reviewResult);
+    const result = await runLayer({ ...layerConfig, name }, reviewResult, repoRoot);
     results.push(result);
   }
 
