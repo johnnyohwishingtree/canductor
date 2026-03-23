@@ -33,6 +33,7 @@ import {
   parseReviewJson,
   detectToolchain,
   scaffoldRubric,
+  runFirstVerification,
 } from '@canductor/core';
 import type { AgentReviewResult } from '@canductor/core';
 import { writeFileSync, existsSync, mkdirSync } from 'node:fs';
@@ -66,7 +67,7 @@ Usage:
 `);
 }
 
-function cmdInit(): void {
+async function cmdInit(): Promise<void> {
   const dir = join(repoRoot, '.canductor');
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
 
@@ -128,7 +129,14 @@ policy:
   if (rubricCreated) {
     console.log('Created .canductor/rubrics/code-quality.md');
   }
-  console.log('Edit the config to match your project, then run: canductor verify');
+
+  const result = await runFirstVerification(repoRoot);
+  if (result) {
+    console.log(`Initial verification score: ${result.composite_score}/100 (${result.decision})`);
+    console.log(`Baseline set to ${result.composite_score}`);
+  } else {
+    console.log('Warning: initial verification could not run. Run manually: canductor verify');
+  }
 }
 
 async function cmdVerify(): Promise<void> {
@@ -481,7 +489,7 @@ async function main(): Promise<void> {
       cmdSuggest();
       break;
     case 'init':
-      cmdInit();
+      await cmdInit();
       break;
     case 'help':
     case '--help':

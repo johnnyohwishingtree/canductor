@@ -8,7 +8,10 @@
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import type { ProjectToolchain } from './types.js';
+import { loadConfig, writeConfigBaseline } from './config.js';
+import { verify } from './verify.js';
+import { appendResult } from './results.js';
+import type { ProjectToolchain, VerifyResult } from './types.js';
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -57,6 +60,30 @@ export function scaffoldRubric(repoRoot: string): boolean {
 
   writeFileSync(rubricPath, STARTER_RUBRIC);
   return true;
+}
+
+/**
+ * Run a first verification after init and log the baseline result.
+ *
+ * Loads the newly created config, runs verify, appends the result to
+ * results.tsv, and sets the baseline score. If verification fails,
+ * returns null instead of throwing.
+ *
+ * @param repoRoot - Absolute path to the repository root
+ * @returns The verify result, or null if verification could not run
+ */
+export async function runFirstVerification(repoRoot: string): Promise<VerifyResult | null> {
+  try {
+    const config = loadConfig(repoRoot);
+    const result = await verify('init', config);
+
+    appendResult(repoRoot, result, 'merged', 'Initial setup');
+    writeConfigBaseline(repoRoot, result.composite_score);
+
+    return result;
+  } catch {
+    return null;
+  }
 }
 
 // ---------------------------------------------------------------------------
