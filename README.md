@@ -14,46 +14,41 @@ Canductor sits beside your repo as a quality harness. It scores agent output, lo
 
 ```
 Agent writes code
-  → Canductor scores it (tests, visual diff, AI rubric review)
-  → Composite quality score (0-100)
-  → Policy decision (auto-merge / human-review / block)
-  → Result logged to .canductor/results.tsv
-  → History injected into agent prompts next run
-  → Agent avoids past mistakes, output improves over time
+  -> Canductor scores it (tests, visual diff, rubric review)
+  -> Composite quality score (0-100)
+  -> Policy decision (auto-merge / human-review / block)
+  -> Result logged to .canductor/results.tsv
+  -> History injected into agent prompts next run
+  -> Agent avoids past mistakes, output improves over time
 ```
 
 Inspired by [autoresearch](https://github.com/karpathy/autoresearch) — try, measure, keep/discard, learn. But for code quality instead of ML metrics.
 
 ## The Self-Building Pipeline
 
-Canductor builds itself using canductor. **Claude Code is the orchestration layer** — no external workflow engines, no event buses, no servers.
+Canductor builds itself using canductor. A **Claude Code scheduled task** runs hourly and follows the pipeline skill (`.claude/skills/pipeline/SKILL.md`):
 
-We evaluated Inngest, Temporal, and OpenClaw before landing here. Claude Code provides everything a pipeline needs natively: cloud sessions for background execution, sub-agents for parallel work, hooks for automation, and skills for reusable workflows. The model IS the orchestrator.
+1. **Merge open PRs** — keeps master current
+2. **Inject context** — `canductor inject CLAUDE.md` feeds past results into the prompt
+3. **Implement** — picks up a `story,pending` issue, creates branch, writes code
+4. **Verify** — runs `canductor verify` (typecheck + tests + rubric self-review)
+5. **Merge** — creates PR, approves, squash merges
+6. **Plan** — if queue is empty, analyzes the codebase and creates a new epic with stories
 
-### How it runs
+**To start work:** create a GitHub Issue with `story` and `pending` labels.
 
-A GitHub Actions cron fires every 20 minutes:
+### Why Claude Code, not GitHub Actions
 
-1. **Find work** — queries GitHub Issues for `story,pending` labels
-2. **Dispatch agent** — runs Claude via `claude-code-action` on a branch
-3. **Verify** — runs `canductor verify` to score the output
-4. **Merge or fix** — creates PR, merges if quality meets baseline
-5. **Close and chain** — marks story complete, next cron picks up the next one
+The previous version used GitHub Actions to orchestrate work (`pipeline.yml` dispatching `agent.yml`). This had a critical cost problem: `claude-code-action` holds a GitHub runner for 10-30 minutes while Claude works. Autonomous pipelines easily hit $250+/month in runner costs alone.
 
-**To start work:** create a GitHub Issue with the `story` and `pending` labels. The pipeline picks it up within 20 minutes.
+Claude Code scheduled tasks flip the model — Claude runs on Anthropic's infrastructure (included in subscription) and uses `gh` CLI to interact with GitHub. Zero runner cost. The scheduled task prompt is just two lines:
 
-### Why Claude Code, not a workflow engine
+```
+Read CLAUDE.md for project context.
+Read .claude/skills/pipeline/SKILL.md and follow every step.
+```
 
-| What we need | Claude Code feature |
-|---|---|
-| Background execution | Cloud sessions (`claude.ai/code`) |
-| Parallel work | Sub-agents, Agent Teams |
-| Automation hooks | 21 lifecycle events (PreToolUse, PostToolUse, Stop, etc.) |
-| Retry on failure | Hooks can re-dispatch on Stop |
-| Token optimization | Plan mode (53% cheaper), `.claudeignore`, skills on-demand |
-| State persistence | `.canductor/results.tsv` committed to repo |
-
-No external infrastructure. No databases, no servers, no event buses. GitHub Issues are the task queue. GitHub Actions is the compute. The repo is the database.
+All pipeline logic lives in the repo as a skill file — versioned, testable, and improvable by the pipeline itself.
 
 ## Quick Start
 
@@ -72,11 +67,17 @@ canductor verify
 
 ### Set up the autonomous pipeline
 
-1. Copy `.github/workflows/pipeline.yml`, `agent.yml`, `verify.yml` to your repo
-2. Add secrets: `CLAUDE_CODE_OAUTH_TOKEN`, `GH_PAT`
-3. Create labels: `story`, `pending`, `in-progress`, `completed`
+1. Create a Claude Code scheduled task (hourly) with this prompt:
+   ```
+   Read CLAUDE.md for project context.
+   Read .claude/skills/pipeline/SKILL.md and follow every step.
+   ```
+2. Connect the GitHub repo in the scheduled task config
+3. Create labels: `story`, `pending`, `in-progress`, `completed`, `epic`
 4. Create an issue with `story` + `pending` labels
-5. Pipeline picks it up on the next cron cycle
+5. The pipeline picks it up on the next hourly run
+
+Optional: keep `.github/workflows/` for CI-only checks (typecheck, tests) on PRs. These are lightweight and don't hold runners for long.
 
 ## Configuration
 
@@ -107,12 +108,12 @@ layers:
   #   weight: 0.8
 
   # AI-powered rubric review
-  # ux_review:
-  #   name: ux_review
+  # code_quality:
+  #   name: code_quality
   #   type: agent-review
   #   model: claude-sonnet-4-6
-  #   rubric: ".canductor/rubrics/ux.md"
-  #   context: ["src/components/"]
+  #   rubric: ".canductor/rubrics/code-quality.md"
+  #   context: ["src/"]
   #   weight: 0.6
 
 policy:
@@ -130,7 +131,7 @@ Tests, typecheck, lint, security scans. Score is 0 or 100.
 Captures screenshots with Playwright, compares pixel-by-pixel to baseline using pixelmatch. Score based on similarity percentage.
 
 ### `agent-review` — AI-powered quality review
-Sends code context + a rubric markdown file to Claude. The rubric defines what "good" means for your domain. Returns a structured score with issues.
+Sends code context + a rubric markdown file to Claude. The rubric defines what "good" means for your domain. Returns a structured score with issues. When running inside a Claude Code session, the implementing Claude reviews against the rubric directly (no separate API key needed).
 
 ## The Learning Loop
 
@@ -167,11 +168,13 @@ The agent reads this before starting work. No fine-tuning — just accumulated c
 canductor init                Create starter .canductor/config.yaml
 canductor verify [ref]        Run all layers, log result, print decision
 canductor score [ref]         Print composite score only
+canductor status              Show pipeline health overview
+canductor trend [--last N]    Show quality trend over last N results
 canductor history             Show results history table
+canductor diff <ref1> <ref2>  Compare quality scores between two refs
 canductor context             Generate quality context for agent prompts
 canductor inject <file>       Inject quality context into a file (e.g., CLAUDE.md)
 canductor suggest             Suggest rule improvements based on history
-canductor diff <ref1> <ref2>  Compare quality scores between two refs
 ```
 
 ## Architecture
@@ -183,17 +186,20 @@ canductor diff <ref1> <ref2>  Compare quality scores between two refs
 ├── baselines/          # Screenshot baselines
 └── rubrics/            # AI review criteria (markdown)
 
-.github/workflows/
-├── pipeline.yml        # Cron: finds stories, dispatches work, merges results
-├── agent.yml           # Runs claude-code-action on a branch
-└── verify.yml          # Runs canductor verify and posts score
-
 .claude/
-├── skills/pipeline/    # /pipeline skill for manual invocation
-└── hooks/              # PostToolUse auto-typecheck, Stop session logging
+├── skills/
+│   ├── pipeline/       # /pipeline — the autonomous loop (scheduled task reads this)
+│   └── canductor-verify/  # /canductor-verify — manual quality scoring
+├── hooks/              # PostToolUse auto-typecheck, Stop session logging
+└── settings.json       # Hook configuration
+
+packages/
+├── core/               # Scoring engine, verification layers, results log
+├── cli/                # CLI tool
+└── github-action/      # GitHub Action wrapper (optional, for CI-only use)
 ```
 
-**No external infrastructure.** No databases, no servers, no event buses. GitHub Issues are the task queue. GitHub Actions is the compute. `.canductor/results.tsv` is the database. Everything lives in the repo.
+**No external infrastructure.** GitHub Issues are the task queue. Claude Code is the compute. `.canductor/results.tsv` is the database. Everything lives in the repo.
 
 ## Philosophy
 
@@ -202,6 +208,7 @@ canductor diff <ref1> <ref2>  Compare quality scores between two refs
 - **The repo is the database.** Results committed to the repo. No external service needed.
 - **The agent learns from context, not training.** Past results are injected into prompts. The agent gets more informed, not retrained.
 - **The harness improves itself.** This repo uses canductor to evaluate its own code. The pipeline builds the pipeline.
+- **Skills as pipeline definitions.** Pipeline logic lives in `.claude/skills/pipeline/SKILL.md` — versioned, testable, and improvable by the pipeline itself.
 
 ## License
 

@@ -1,125 +1,194 @@
+---
+name: pipeline
+description: Autonomous story pipeline — implement, verify, merge, plan
+argument-hint: "[--issue N]"
+---
+
 # /pipeline — Autonomous Story Pipeline
 
-Run the canductor self-building pipeline. Picks up pending stories, implements them, verifies with canductor scoring, and merges — all autonomously.
+The canductor self-building loop. Merges open PRs, implements pending stories, verifies with canductor scoring, and plans new work when the queue is empty.
+
+This file is the single source of truth for the pipeline. Claude Code scheduled tasks reference it directly:
+```
+Read .claude/skills/pipeline/SKILL.md and follow every step.
+```
 
 ## Usage
 ```
-/pipeline              # Process next pending story
-/pipeline --loop       # Keep processing until no stories remain
-/pipeline --issue N    # Process a specific issue
+/pipeline              # Run one full cycle
+/pipeline --issue N    # Implement a specific issue
 ```
 
-## How It Works
+## Full Cycle
 
-This skill orchestrates the full story lifecycle using Claude Code sub-agents:
+### Step 1: Merge open PRs
 
-1. **Find work** — query GitHub for `story,pending` issues
-2. **Inject context** — run `canductor inject CLAUDE.md` to update quality context from past results
-3. **Implement** — spawn a sub-agent to implement the story on a branch
-4. **Verify** — run `canductor verify` to score the output
-5. **Fix loop** — if score < baseline or tests fail, spawn fix sub-agent (up to 6 attempts)
-6. **Create PR** — open a PR with the verified code
-7. **Merge** — squash merge the PR
-8. **Log** — append result to `.canductor/results.tsv`
-9. **Chain** — if `--loop`, pick up next pending story
-
-## Instructions
-
-When this skill is invoked, follow these steps exactly:
-
-### Step 1: Find the next story
+Ensure master is current before starting new work.
 
 ```bash
-# If --issue N was specified, use that issue
-# Otherwise find the next pending story
-gh issue list --repo "$REPO" --label "story,pending" --state open --json number,title --jq '.[0]'
+gh pr list --repo johnnyohwishingtree/canductor --state open --json number,title,headRefName --jq '.[]'
 ```
 
-If no pending stories, report "No pending stories" and stop.
+For each open PR:
+1. Read the diff: `gh pr diff $NUMBER --repo johnnyohwishingtree/canductor`
+2. Review against `.canductor/rubrics/canductor-code-quality.md`
+3. If clean: approve and squash merge
+4. If issues: checkout the branch, fix them, run `pnpm build && pnpm typecheck && pnpm test`, push, then approve and squash merge
 
-### Step 2: Update quality context
+After merging all PRs:
+```bash
+git checkout master && git pull origin master
+```
+
+### Step 2: Inject quality context
+
+Update CLAUDE.md with patterns learned from past verification results.
 
 ```bash
-cd /path/to/repo
+pnpm install && pnpm build
 node packages/cli/dist/cli.js inject CLAUDE.md
 ```
 
-This updates CLAUDE.md with quality patterns from past verification results so you avoid repeating past mistakes.
-
-### Step 3: Mark story as in-progress
-
+If CLAUDE.md changed, commit and push:
 ```bash
-gh issue edit $ISSUE_NUMBER --repo "$REPO" --remove-label "pending" --add-label "in-progress"
-gh issue comment $ISSUE_NUMBER --repo "$REPO" --body "Pipeline picked up this story. Starting implementation."
+git add CLAUDE.md
+git diff --cached --quiet || git commit -m "chore: inject canductor quality context" && git push origin master
 ```
 
-### Step 4: Create branch and implement
+**Re-read the updated CLAUDE.md** — the quality context section at the bottom tells you recurring issues to avoid.
 
-Create a branch `canductor/issue-$ISSUE_NUMBER` from master.
+### Step 3: Find next story
 
 ```bash
-git checkout -b canductor/issue-$ISSUE_NUMBER origin/master
+# If --issue N was specified, use that issue number
+# Otherwise find the next pending story (lowest number first)
+gh issue list --repo johnnyohwishingtree/canductor --label "story" --label "pending" --state open --json number,title --jq '.[0]'
 ```
 
-Now read the issue body and implement it. Follow CLAUDE.md rules:
+If no pending stories, skip to **Step 7** (plan next epic).
+
+### Step 4: Implement
+
+```bash
+NUMBER=<issue number>
+gh issue edit $NUMBER --repo johnnyohwishingtree/canductor --remove-label "pending" --add-label "in-progress"
+git fetch origin master && git checkout -b canductor/issue-$NUMBER origin/master
+```
+
+Read the issue body and implement it. Follow CLAUDE.md rules:
 - Run `pnpm typecheck` after every file change
 - Run `pnpm test` before committing
-- Never use `any` types
+- Never use `any` types — fix the root cause
 - Keep functions small and single-purpose
+- Every new module needs tests
+- Dependencies flow: cli -> core. Never the reverse.
 
-Push the implementation:
+### Step 5: Verify before pushing
+
+Run the deterministic checks:
 ```bash
-git push -u origin canductor/issue-$ISSUE_NUMBER
+pnpm build && pnpm typecheck && pnpm test
 ```
 
-### Step 5: Verify with canductor
+If any fail, fix and retry (up to 3 attempts).
 
+Then self-review against the rubric at `.canductor/rubrics/canductor-code-quality.md`:
+- **Architecture (30%)**: small functions, correct dependency direction, no `any`, explicit error handling
+- **Verification Engine (25%)**: layers composable and independent, results log consistent
+- **Testing (25%)**: new functions have tests, happy path + at least one error path
+- **Code Style (20%)**: strict mode passes, no unused imports, barrel exports, camelCase/PascalCase
+
+If your self-review score is below 80, fix the issues before proceeding.
+
+Log the result with canductor verify:
 ```bash
-pnpm build
-node packages/cli/dist/cli.js verify "$ISSUE_NUMBER"
-SCORE=$(node packages/cli/dist/cli.js score "$ISSUE_NUMBER")
+node packages/cli/dist/cli.js verify "$NUMBER"
 ```
 
-Read the decision from the output.
-
-### Step 6: Fix loop (if needed)
-
-If the verification fails (decision = "block"):
-- Read the error summary
-- Fix the issues
-- Run `pnpm typecheck && pnpm test` to confirm
-- Push and re-verify
-- Repeat up to 6 times
-
-### Step 7: Create and merge PR
+### Step 6: Push, PR, merge, close
 
 ```bash
-gh pr create --head "canductor/issue-$ISSUE_NUMBER" --base master \
-  --title "$(gh issue view $ISSUE_NUMBER --json title --jq .title)" \
-  --body "Closes #$ISSUE_NUMBER
+git add <specific files> # never git add -A
+git commit -m "<descriptive message>
 
-Autonomously implemented by canductor pipeline.
-Canductor score: $SCORE/100"
-
-gh pr merge --squash --admin
+Closes #$NUMBER"
+git push -u origin canductor/issue-$NUMBER
 ```
 
-### Step 8: Log result and clean up
+Create and merge the PR:
+```bash
+TITLE=$(gh issue view $NUMBER --repo johnnyohwishingtree/canductor --json title --jq .title)
+gh pr create --repo johnnyohwishingtree/canductor \
+  --head canductor/issue-$NUMBER --base master \
+  --title "$TITLE" \
+  --body "Closes #$NUMBER — implemented autonomously by canductor pipeline."
+
+PR_NUMBER=$(gh pr list --repo johnnyohwishingtree/canductor --head canductor/issue-$NUMBER --json number --jq '.[0].number')
+gh pr review $PR_NUMBER --repo johnnyohwishingtree/canductor --approve --body "Self-verified: typecheck + tests pass."
+gh pr merge $PR_NUMBER --repo johnnyohwishingtree/canductor --squash
+```
+
+Close the issue:
+```bash
+gh issue edit $NUMBER --repo johnnyohwishingtree/canductor --remove-label "in-progress" --add-label "completed"
+gh issue close $NUMBER --repo johnnyohwishingtree/canductor
+```
+
+Commit the results log:
+```bash
+git checkout master && git pull origin master
+git add .canductor/results.tsv
+git diff --cached --quiet || git commit -m "chore: log canductor result for #$NUMBER" && git push origin master
+```
+
+### Step 7: Plan next epic (when queue is empty)
+
+Only runs when there are no pending stories left.
 
 ```bash
-node packages/cli/dist/cli.js history  # verify result was logged
-gh issue edit $ISSUE_NUMBER --repo "$REPO" --remove-label "in-progress" --add-label "completed"
-gh issue close $ISSUE_NUMBER --repo "$REPO"
+# Check there's truly nothing queued
+PENDING=$(gh issue list --repo johnnyohwishingtree/canductor --label "story" --label "pending" --state open --json number --jq 'length')
+if [ "$PENDING" -gt 0 ]; then exit 0; fi
 ```
 
-### Step 9: Chain to next story (if --loop)
+Analyze the project to identify the highest-impact improvement:
+1. Read the codebase (`packages/core/src/`, `packages/cli/src/`)
+2. Read `.canductor/results.tsv` for past work patterns
+3. Check recently closed issues to avoid duplicates:
+   ```bash
+   gh issue list --repo johnnyohwishingtree/canductor --state closed --limit 10 --json number,title
+   ```
+4. Look for: missing features mentioned in CLAUDE.md, test coverage gaps, CLI commands listed but not implemented, error handling improvements
 
-If `--loop` was specified, go back to Step 1.
+Create an epic and stories:
+```bash
+# Create label
+gh label create "epic:<slug>" --repo johnnyohwishingtree/canductor --color "0E8A16" --description "Epic: <title>" 2>/dev/null || true
+
+# Create epic
+gh issue create --repo johnnyohwishingtree/canductor \
+  --title "Epic: <goal>" --label "epic" --label "epic:<slug>" \
+  --body "<goal, story checklist with issue numbers, success criteria>"
+
+# Create 2-4 stories (each completable in one session)
+gh issue create --repo johnnyohwishingtree/canductor \
+  --title "Story: <task>" --label "story" --label "pending" --label "epic:<slug>" \
+  --body "<description, acceptance criteria, files to modify, dependencies>"
+
+# Update epic body with actual issue numbers
+gh issue edit <epic_number> --repo johnnyohwishingtree/canductor --body "..."
+```
+
+Story sizing rules:
+- Each story produces a shippable, testable increment
+- Combine tightly coupled small steps into one story
+- Split steps that touch different layers (core vs cli)
+- If a story has no acceptance criteria beyond "files exist," merge it with another
+
+The next pipeline run will pick up the first new story.
 
 ## Token Optimization
 
-- Use plan mode for orchestration decisions (reading issues, checking scores)
-- Only switch to full mode for implementation
 - Don't read files you've already read in this session
-- Use `pnpm typecheck` incrementally (one file at a time)
-- Keep the implementation focused — one story, one branch, one PR
+- Use `pnpm typecheck` incrementally after each file
+- Keep implementation focused — one story, one branch, one PR
