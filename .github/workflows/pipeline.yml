@@ -12,13 +12,12 @@ permissions:
   actions: write
 
 jobs:
-  run:
+  # Job 1: Dispatch agent for the next pending story
+  dispatch:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Find and process next story
+      - name: Find and dispatch next story
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
@@ -35,13 +34,13 @@ jobs:
 
           NUMBER=$(echo "$ISSUE" | jq -r '.number')
           TITLE=$(echo "$ISSUE" | jq -r '.title')
-          echo "Processing story #$NUMBER: $TITLE"
+          echo "Found story #$NUMBER: $TITLE"
 
-          # Skip if agent is already running for any canductor/ branch
+          # Skip if agent is already running
           ACTIVE=$(gh run list --repo "$REPO" --workflow agent.yml --status in_progress \
             --json databaseId --jq 'length')
           if [ "$ACTIVE" -gt 0 ]; then
-            echo "Agent already running — skipping"
+            echo "Agent already running — skipping dispatch"
             exit 0
           fi
 
@@ -75,55 +74,101 @@ jobs:
 
           Closes #$NUMBER"
 
+          RUN_URL="https://github.com/$REPO/actions/workflows/agent.yml"
           gh issue comment "$NUMBER" --repo "$REPO" \
-            --body "Pipeline picked up this story. Dispatched agent on branch \`$BRANCH\`."
+            --body "Pipeline picked up this story. Dispatched agent on branch [\`$BRANCH\`](https://github.com/$REPO/tree/$BRANCH). [View agent runs]($RUN_URL)"
 
-      - name: Check for completed agent runs needing PR
+  # Job 2: Check in-progress stories — create PRs, verify, merge
+  process:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install and build canductor
+        run: npm install -g pnpm && pnpm install && pnpm build
+
+      - name: Process in-progress stories
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           REPO="${{ github.repository }}"
 
-          # Find in-progress stories with branches that have commits but no PR
           gh issue list --repo "$REPO" --label "story,in-progress" --state open \
             --json number --jq '.[].number' | while read -r NUMBER; do
 
             BRANCH="canductor/issue-${NUMBER}"
+            echo "=== Checking story #$NUMBER ($BRANCH) ==="
 
             # Check if branch has commits ahead of master
             AHEAD=$(gh api "repos/$REPO/compare/master...$BRANCH" \
               --jq '.ahead_by' 2>/dev/null || echo "0")
 
             if [ "$AHEAD" -eq 0 ]; then
+              echo "No commits yet — agent still working"
               continue
             fi
+
+            # Check if agent is still running for this branch
+            AGENT_RUNNING=$(gh run list --repo "$REPO" --workflow agent.yml --status in_progress \
+              --branch "$BRANCH" --json databaseId --jq 'length' 2>/dev/null || echo "0")
+
+            if [ "$AGENT_RUNNING" -gt 0 ]; then
+              echo "Agent still running on this branch"
+              continue
+            fi
+
+            echo "Agent finished with $AHEAD commits"
+
+            # Run canductor verify inline
+            echo "--- Running canductor verify ---"
+            git fetch origin "$BRANCH"
+            git checkout "origin/$BRANCH" -- . 2>/dev/null || true
+
+            SCORE=$(node packages/cli/dist/cli.js score "$NUMBER" 2>/dev/null || echo "0")
+            echo "Canductor score: $SCORE/100"
 
             # Check if PR already exists
             EXISTING_PR=$(gh pr list --repo "$REPO" --head "$BRANCH" \
               --json number --jq '.[0].number' 2>/dev/null || echo "")
 
-            if [ -n "$EXISTING_PR" ]; then
-              # PR exists — merge if no failing checks
-              STATE=$(gh pr view "$EXISTING_PR" --repo "$REPO" \
-                --json mergeable --jq '.mergeable' 2>/dev/null || echo "")
+            if [ -z "$EXISTING_PR" ]; then
+              # Create PR
+              TITLE=$(gh issue view "$NUMBER" --repo "$REPO" --json title --jq '.title')
+              echo "Creating PR for story #$NUMBER"
+              EXISTING_PR=$(gh pr create --repo "$REPO" --head "$BRANCH" --base master \
+                --title "$TITLE" \
+                --body "Closes #$NUMBER
 
-              if [ "$STATE" = "MERGEABLE" ]; then
-                echo "Merging PR #$EXISTING_PR for story #$NUMBER"
-                gh pr merge "$EXISTING_PR" --repo "$REPO" --squash --admin || true
-                gh issue edit "$NUMBER" --repo "$REPO" \
-                  --remove-label "in-progress" --add-label "completed"
-                gh issue close "$NUMBER" --repo "$REPO" 2>/dev/null || true
+          Canductor score: **$SCORE/100**
+
+          Autonomously implemented by canductor pipeline." 2>&1 | grep -oE '[0-9]+$' || echo "")
+
+              if [ -z "$EXISTING_PR" ]; then
+                echo "Failed to create PR"
+                continue
               fi
-              continue
             fi
 
-            # No PR yet — create one
-            TITLE=$(gh issue view "$NUMBER" --repo "$REPO" --json title --jq '.title')
-            echo "Creating PR for story #$NUMBER"
-            gh pr create --repo "$REPO" --head "$BRANCH" --base master \
-              --title "$TITLE" \
-              --body "Closes #$NUMBER
+            # Merge the PR
+            echo "Merging PR #$EXISTING_PR"
+            if gh pr merge "$EXISTING_PR" --repo "$REPO" --squash --admin; then
+              echo "Merged! Closing story #$NUMBER"
+              gh issue edit "$NUMBER" --repo "$REPO" \
+                --remove-label "in-progress" --add-label "completed"
+              gh issue close "$NUMBER" --repo "$REPO" 2>/dev/null || true
 
-          Autonomously implemented by canductor pipeline." || true
+              gh issue comment "$NUMBER" --repo "$REPO" \
+                --body "Story complete. Canductor score: **$SCORE/100**. PR #$EXISTING_PR merged."
+            else
+              echo "Could not merge PR #$EXISTING_PR"
+            fi
+
+            # Reset checkout for next iteration
+            git checkout HEAD -- . 2>/dev/null || true
 
           done
