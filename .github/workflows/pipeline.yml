@@ -141,22 +141,30 @@ jobs:
             git fetch origin "$BRANCH"
             git checkout "origin/$BRANCH" -- . 2>/dev/null || true
 
-            SCORE=$(node packages/cli/dist/cli.js score "$NUMBER" 2>/dev/null || echo "0")
-            echo "Canductor score: $SCORE/100"
+            VERIFY_OUTPUT=$(node packages/cli/dist/cli.js verify "$NUMBER" 2>&1 || true)
+            SCORE=$(echo "$VERIFY_OUTPUT" | grep "Composite score:" | grep -oE '[0-9]+' | head -1 || echo "0")
+            DECISION=$(echo "$VERIFY_OUTPUT" | grep "Decision:" | awk '{print $2}' || echo "block")
+            SUMMARY=$(echo "$VERIFY_OUTPUT" | head -20)
 
-            # Check if PR already exists
+            echo "Canductor score: $SCORE/100, decision: $DECISION"
+
+            # Always create PR (so work is visible)
             EXISTING_PR=$(gh pr list --repo "$REPO" --head "$BRANCH" \
               --json number --jq '.[0].number' 2>/dev/null || echo "")
 
             if [ -z "$EXISTING_PR" ]; then
-              # Create PR
               TITLE=$(gh issue view "$NUMBER" --repo "$REPO" --json title --jq '.title')
               echo "Creating PR for story #$NUMBER"
               EXISTING_PR=$(gh pr create --repo "$REPO" --head "$BRANCH" --base master \
                 --title "$TITLE" \
                 --body "Closes #$NUMBER
 
-          Canductor score: **$SCORE/100**
+          ## Canductor Verification
+          **Score:** $SCORE/100 | **Decision:** \`$DECISION\`
+
+          \`\`\`
+          $SUMMARY
+          \`\`\`
 
           Autonomously implemented by canductor pipeline." 2>&1 | grep -oE '[0-9]+$' || echo "")
 
@@ -164,23 +172,55 @@ jobs:
                 echo "Failed to create PR"
                 continue
               fi
-
-              gh issue comment "$NUMBER" --repo "$REPO" \
-                --body "Agent finished. Created [PR #$EXISTING_PR](https://github.com/$REPO/pull/$EXISTING_PR). Canductor score: **$SCORE/100**."
             fi
 
-            # Merge the PR
-            echo "Merging PR #$EXISTING_PR"
-            if gh pr merge "$EXISTING_PR" --repo "$REPO" --squash --admin; then
-              echo "Merged! Closing story #$NUMBER"
-              gh issue edit "$NUMBER" --repo "$REPO" \
-                --remove-label "in-progress" --add-label "completed"
-              gh issue close "$NUMBER" --repo "$REPO" 2>/dev/null || true
+            # Act on the decision
+            if [ "$DECISION" = "auto_merge" ]; then
+              echo "Decision: auto_merge — merging PR #$EXISTING_PR"
+              if gh pr merge "$EXISTING_PR" --repo "$REPO" --squash --admin; then
+                gh issue edit "$NUMBER" --repo "$REPO" \
+                  --remove-label "in-progress" --add-label "completed"
+                gh issue close "$NUMBER" --repo "$REPO" 2>/dev/null || true
+                gh issue comment "$NUMBER" --repo "$REPO" \
+                  --body "✓ Story complete. [PR #$EXISTING_PR](https://github.com/$REPO/pull/$EXISTING_PR) merged. Score: **$SCORE/100**."
+              fi
 
+            elif [ "$DECISION" = "human_review" ]; then
+              echo "Decision: human_review — PR created, waiting for human"
               gh issue comment "$NUMBER" --repo "$REPO" \
-                --body "✓ Story complete. [PR #$EXISTING_PR](https://github.com/$REPO/pull/$EXISTING_PR) merged. Score: **$SCORE/100**."
-            else
-              echo "Could not merge PR #$EXISTING_PR"
+                --body "Agent finished. [PR #$EXISTING_PR](https://github.com/$REPO/pull/$EXISTING_PR) created. Score: **$SCORE/100** (below baseline).
+
+          **Needs human review** — canductor flagged this for manual inspection.
+
+          \`\`\`
+          $SUMMARY
+          \`\`\`"
+
+            elif [ "$DECISION" = "block" ]; then
+              echo "Decision: block — dispatching fix agent"
+              gh issue comment "$NUMBER" --repo "$REPO" \
+                --body "Agent finished but verification **blocked** (score: $SCORE/100). [PR #$EXISTING_PR](https://github.com/$REPO/pull/$EXISTING_PR).
+
+          Dispatching fix agent.
+
+          \`\`\`
+          $SUMMARY
+          \`\`\`"
+
+              # Dispatch agent to fix the errors
+              gh workflow run agent.yml --repo "$REPO" \
+                -f issue_number="$NUMBER" \
+                -f branch="$BRANCH" \
+                -f prompt="Read CLAUDE.md first. The previous implementation for issue #$NUMBER failed canductor verification.
+
+          FIX THESE ERRORS:
+          $SUMMARY
+
+          After fixing:
+          1. Run pnpm typecheck && pnpm test
+          2. git add, commit, push to $BRANCH
+
+          Closes #$NUMBER" || true
             fi
 
             # Reset checkout for next iteration
