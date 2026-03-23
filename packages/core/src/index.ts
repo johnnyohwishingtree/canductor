@@ -1,13 +1,13 @@
 export { loadConfig, findConfigPath, writeConfigBaseline } from './config.js';
 export { verify, computeCompositeScore, evaluatePolicy } from './verify.js';
-export { runLayer, runDeterministicLayer, runScreenshotDiffLayer, runAgentReviewLayer } from './layers.js';
+export { runLayer, runDeterministicLayer, runScreenshotDiffLayer, runAgentReviewLayer, getAgentReviewPrompt } from './layers.js';
 export { readResults, appendResult, analyzeResults, generatePromptContext, diffResults, getStatus, getTrend, computeAutoBaseline, getBaseline } from './results.js';
 export type { LayerDiff, DiffResult, PipelineStatus, TrendEntry, TrendResult } from './results.js';
 export { compareScreenshots, updateBaseline } from './screenshot.js';
 export type { ScreenshotDiffResult } from './screenshot.js';
 export { evaluateExpression, evaluateAllPolicies, buildPolicyContext } from './policy.js';
 export type { PolicyContext } from './policy.js';
-export { runAgentReview } from './agent-review.js';
+export { runAgentReview, buildReviewPrompt, parseReviewJson } from './agent-review.js';
 export { injectContext, suggestRuleImprovements } from './feedback.js';
 export type {
   CanductorConfig,
@@ -18,5 +18,6 @@ export type {
   ResultRow,
   QualityContext,
   AgentReviewResult,
+  SelfReviewPrompt,
   RuleImprovement,
 } from './types.js';
