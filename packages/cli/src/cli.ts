@@ -21,6 +21,7 @@ import {
   generatePromptContext,
   injectContext,
   suggestRuleImprovements,
+  diffResults,
 } from '@canductor/core';
 import { writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -33,14 +34,15 @@ function printUsage(): void {
   console.log(`canductor — quality verification for agentic output
 
 Usage:
-  canductor verify [ref]     Run all layers, log result, print decision
-  canductor score [ref]      Run layers, print composite score only
-  canductor history          Show results history table
-  canductor context          Generate quality context for agent prompts
-  canductor inject <file>    Inject quality context into a file (e.g. CLAUDE.md)
-  canductor suggest          Suggest rule improvements based on history
-  canductor init             Create starter config
-  canductor help             Show this message
+  canductor verify [ref]        Run all layers, log result, print decision
+  canductor score [ref]         Run layers, print composite score only
+  canductor history             Show results history table
+  canductor diff <ref1> <ref2>  Compare quality scores between two refs
+  canductor context             Generate quality context for agent prompts
+  canductor inject <file>       Inject quality context into a file (e.g. CLAUDE.md)
+  canductor suggest             Suggest rule improvements based on history
+  canductor init                Create starter config
+  canductor help                Show this message
 `);
 }
 
@@ -149,6 +151,56 @@ function cmdHistory(): void {
   }
 }
 
+function cmdDiff(): void {
+  const ref1 = args[1];
+  const ref2 = args[2];
+  if (!ref1 || !ref2) {
+    console.error('Usage: canductor diff <ref1> <ref2>');
+    process.exit(1);
+  }
+
+  const diff = diffResults(repoRoot, ref1, ref2);
+  if (!diff) {
+    const results = readResults(repoRoot);
+    const found = results.map(r => r.ref);
+    if (!results.find(r => r.ref === ref1)) {
+      console.error(`Ref not found in results log: ${ref1}`);
+    }
+    if (!results.find(r => r.ref === ref2)) {
+      console.error(`Ref not found in results log: ${ref2}`);
+    }
+    if (found.length > 0) {
+      console.error(`Available refs: ${found.join(', ')}`);
+    }
+    process.exit(1);
+  }
+
+  const sign = (n: number) => (n > 0 ? `+${n}` : `${n}`);
+  const deltaStr = sign(diff.delta);
+
+  console.log(`\nDiff: ${diff.ref1} → ${diff.ref2}`);
+  console.log(`Composite score: ${diff.composite1} → ${diff.composite2} (${deltaStr})\n`);
+  console.log('Layer breakdown:');
+  console.log('  Layer'.padEnd(24) + 'Before'.padEnd(10) + 'After'.padEnd(10) + 'Change');
+  console.log('  ' + '-'.repeat(52));
+
+  for (const layer of diff.layers) {
+    const before = layer.score1 !== null ? String(layer.score1) : '—';
+    const after  = layer.score2 !== null ? String(layer.score2) : '—';
+    let changeLabel: string;
+    if (layer.change === 'improved')  changeLabel = `▲ +${layer.delta}`;
+    else if (layer.change === 'regressed') changeLabel = `▼ ${layer.delta}`;
+    else if (layer.change === 'unchanged') changeLabel = '= no change';
+    else if (layer.change === 'added')    changeLabel = '+ added';
+    else                                  changeLabel = '- removed';
+
+    console.log(
+      `  ${layer.name.padEnd(22)}${before.padEnd(10)}${after.padEnd(10)}${changeLabel}`
+    );
+  }
+  console.log('');
+}
+
 function cmdContext(): void {
   const context = generatePromptContext(repoRoot);
   console.log(context);
@@ -198,6 +250,9 @@ async function main(): Promise<void> {
       break;
     case 'history':
       cmdHistory();
+      break;
+    case 'diff':
+      cmdDiff();
       break;
     case 'context':
       cmdContext();

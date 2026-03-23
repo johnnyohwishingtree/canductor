@@ -138,6 +138,91 @@ export function analyzeResults(repoRoot: string): QualityContext {
   };
 }
 
+/** A single layer diff entry. */
+export interface LayerDiff {
+  name: string;
+  score1: number | null;
+  score2: number | null;
+  delta: number | null;
+  change: 'improved' | 'regressed' | 'unchanged' | 'added' | 'removed';
+}
+
+/** Result of comparing two refs from the results log. */
+export interface DiffResult {
+  ref1: string;
+  ref2: string;
+  composite1: number;
+  composite2: number;
+  delta: number;
+  layers: LayerDiff[];
+}
+
+/**
+ * Parse a layer_scores string ("tests:100,ux:80") into a map.
+ */
+function parseLayerScores(raw: string): Map<string, number> {
+  const map = new Map<string, number>();
+  if (!raw) return map;
+  for (const entry of raw.split(',')) {
+    const [name, val] = entry.split(':');
+    if (name && val !== undefined) map.set(name, parseFloat(val));
+  }
+  return map;
+}
+
+/**
+ * Compare two refs from the results log and show how quality changed.
+ * Returns null if either ref is not found.
+ */
+export function diffResults(repoRoot: string, ref1: string, ref2: string): DiffResult | null {
+  const results = readResults(repoRoot);
+
+  const row1 = results.find(r => r.ref === ref1);
+  const row2 = results.find(r => r.ref === ref2);
+
+  if (!row1 || !row2) return null;
+
+  const scores1 = parseLayerScores(row1.layer_scores);
+  const scores2 = parseLayerScores(row2.layer_scores);
+
+  const allLayers = new Set([...scores1.keys(), ...scores2.keys()]);
+  const layers: LayerDiff[] = [];
+
+  for (const name of allLayers) {
+    const s1 = scores1.has(name) ? scores1.get(name)! : null;
+    const s2 = scores2.has(name) ? scores2.get(name)! : null;
+
+    let change: LayerDiff['change'];
+    let delta: number | null = null;
+
+    if (s1 === null) {
+      change = 'added';
+    } else if (s2 === null) {
+      change = 'removed';
+    } else {
+      delta = s2 - s1;
+      if (delta > 0) change = 'improved';
+      else if (delta < 0) change = 'regressed';
+      else change = 'unchanged';
+    }
+
+    layers.push({ name, score1: s1, score2: s2, delta, change });
+  }
+
+  // Sort: regressed first, then improved, then unchanged, then added/removed
+  const order = { regressed: 0, improved: 1, unchanged: 2, added: 3, removed: 4 };
+  layers.sort((a, b) => order[a.change] - order[b.change]);
+
+  return {
+    ref1,
+    ref2,
+    composite1: row1.composite_score,
+    composite2: row2.composite_score,
+    delta: row2.composite_score - row1.composite_score,
+    layers,
+  };
+}
+
 /**
  * Generate a context block to inject into agent prompts.
  * This is what makes the agent "learn" from past results.
