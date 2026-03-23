@@ -32,6 +32,7 @@ import {
   getAgentReviewPrompt,
   parseReviewJson,
   detectToolchain,
+  scaffoldRubric,
 } from '@canductor/core';
 import type { AgentReviewResult } from '@canductor/core';
 import { writeFileSync, existsSync, mkdirSync } from 'node:fs';
@@ -77,6 +78,19 @@ function cmdInit(): void {
 
   const toolchain = detectToolchain(repoRoot);
 
+  const rubricCreated = scaffoldRubric(repoRoot);
+  const agentReviewSection = rubricCreated
+    ? `
+  code_quality:
+    name: code_quality
+    type: agent-review
+    model: claude-sonnet-4-6
+    rubric: ".canductor/rubrics/code-quality.md"
+    context: ["src/"]
+    weight: 0.6
+`
+    : '';
+
   writeFileSync(configPath, `# canductor verification config
 # Docs: https://canductor.ai/docs/config
 version: 1
@@ -93,7 +107,7 @@ layers:
     type: deterministic
     run: "${toolchain.typecheckCmd}"
     weight: 1.0
-
+${agentReviewSection}
   # Uncomment to add visual regression:
   # visual:
   #   name: visual
@@ -103,15 +117,6 @@ layers:
   #   threshold: 5
   #   weight: 0.8
 
-  # Uncomment to add AI-powered review:
-  # ux_review:
-  #   name: ux_review
-  #   type: agent-review
-  #   model: claude-sonnet-4-6
-  #   rubric: ".claude/rubrics/ux.md"
-  #   context: ["src/", "docs/design-system.md"]
-  #   weight: 0.6
-
 policy:
   auto_merge: "all_deterministic_pass AND all_pass"
   human_review: "any_agent_review_fail"
@@ -120,6 +125,9 @@ policy:
 
   console.log(`Detected toolchain: ${toolchain.packageManager}`);
   console.log('Created .canductor/config.yaml');
+  if (rubricCreated) {
+    console.log('Created .canductor/rubrics/code-quality.md');
+  }
   console.log('Edit the config to match your project, then run: canductor verify');
 }
 

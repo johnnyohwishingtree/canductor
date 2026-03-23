@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { detectToolchain } from '../src/scaffold.js';
+import { detectToolchain, scaffoldRubric } from '../src/scaffold.js';
 
 // ---------------------------------------------------------------------------
 // Test fixtures
@@ -109,5 +109,52 @@ describe('detectToolchain', () => {
     const result = detectToolchain(tempDir);
 
     expect(result.buildCmd).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// scaffoldRubric
+// ---------------------------------------------------------------------------
+describe('scaffoldRubric', () => {
+  it('creates rubric file and returns true', () => {
+    const result = scaffoldRubric(tempDir);
+
+    expect(result).toBe(true);
+    const rubricPath = join(tempDir, '.canductor', 'rubrics', 'code-quality.md');
+    expect(existsSync(rubricPath)).toBe(true);
+  });
+
+  it('rubric content follows template structure with weighted categories', () => {
+    scaffoldRubric(tempDir);
+
+    const content = readFileSync(
+      join(tempDir, '.canductor', 'rubrics', 'code-quality.md'),
+      'utf-8',
+    );
+    expect(content).toContain('# Code Quality Rubric');
+    expect(content).toContain('weight: 30%');
+    expect(content).toContain('weight: 20%');
+
+    // Verify weights sum to 100%
+    const weights = [...content.matchAll(/weight:\s*(\d+)%/g)].map(m => Number(m[1]));
+    expect(weights.reduce((a, b) => a + b, 0)).toBe(100);
+  });
+
+  it('does not overwrite existing rubric and returns false', () => {
+    const rubricDir = join(tempDir, '.canductor', 'rubrics');
+    mkdirSync(rubricDir, { recursive: true });
+    const rubricPath = join(rubricDir, 'code-quality.md');
+    writeFileSync(rubricPath, '# Custom rubric');
+
+    const result = scaffoldRubric(tempDir);
+
+    expect(result).toBe(false);
+    expect(readFileSync(rubricPath, 'utf-8')).toBe('# Custom rubric');
+  });
+
+  it('creates nested directories if they do not exist', () => {
+    scaffoldRubric(tempDir);
+
+    expect(existsSync(join(tempDir, '.canductor', 'rubrics'))).toBe(true);
   });
 });
