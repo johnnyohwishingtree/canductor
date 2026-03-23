@@ -349,6 +349,13 @@ function cmdStatus(): void {
   } else {
     console.log('Recurring:   none');
   }
+
+  if (s.stalls.length > 0) {
+    const stallSummary = s.stalls.map(
+      st => `ref ${st.ref}, ${st.attempts} attempts at score ${st.scoreRange.min}-${st.scoreRange.max}`
+    ).join('; ');
+    console.log(`Stalls:      ${s.stalls.length} ref(s) stuck (${stallSummary})`);
+  }
 }
 
 function cmdBaseline(): void {

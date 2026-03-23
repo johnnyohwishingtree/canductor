@@ -129,6 +129,15 @@ export interface SkillLintResult {
   valid: boolean;
 }
 
+/** A detected stall — same ref attempted multiple times with no score improvement. */
+export interface StallDetection {
+  ref: string;
+  attempts: number;
+  scores: number[];
+  scoreRange: { min: number; max: number };
+  suggestion: string;
+}
+
 /** Context injected into agent prompts based on results history. */
 export interface QualityContext {
   /** Recent results summary. */
@@ -139,4 +148,6 @@ export interface QualityContext {
   suggested_rules: string[];
   /** Current baseline composite score. */
   baseline_score: number;
+  /** Detected stalls — refs with 3+ attempts and no score improvement. */
+  stalls: StallDetection[];
 }
