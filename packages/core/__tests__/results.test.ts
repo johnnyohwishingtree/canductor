@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { appendResult, readResults, analyzeResults, generatePromptContext, diffResults, getStatus } from '../src/results.js';
+import { appendResult, readResults, analyzeResults, generatePromptContext, diffResults, getStatus, getTrend } from '../src/results.js';
 import type { VerifyResult } from '../src/types.js';
 
 let tempDir: string;
@@ -214,6 +214,95 @@ describe('getStatus', () => {
 
     const s = getStatus(tempDir);
     expect(s.recurringIssues).toHaveLength(0);
+  });
+});
+
+describe('getTrend', () => {
+  it('returns empty result when no results exist', () => {
+    const trend = getTrend(tempDir);
+    expect(trend.entries).toHaveLength(0);
+    expect(trend.direction).toBeNull();
+    expect(trend.delta).toBeNull();
+  });
+
+  it('returns all results when fewer than last N exist', () => {
+    appendResult(tempDir, makeVerifyResult('#1', 77, true), 'merged', 'first');
+    appendResult(tempDir, makeVerifyResult('#2', 85, true), 'merged', 'second');
+
+    const trend = getTrend(tempDir, 10);
+    expect(trend.entries).toHaveLength(2);
+  });
+
+  it('limits to last N results', () => {
+    for (let i = 1; i <= 8; i++) {
+      appendResult(tempDir, makeVerifyResult(`#${i}`, 80 + i, true), 'merged', `pr ${i}`);
+    }
+
+    const trend = getTrend(tempDir, 5);
+    expect(trend.entries).toHaveLength(5);
+    expect(trend.entries[0].ref).toBe('#4');
+    expect(trend.entries[4].ref).toBe('#8');
+  });
+
+  it('computes avg, best, worst correctly', () => {
+    appendResult(tempDir, makeVerifyResult('#3', 77, true), 'merged', 'a');
+    appendResult(tempDir, makeVerifyResult('#4', 77, true), 'merged', 'b');
+    appendResult(tempDir, makeVerifyResult('#5', 82, true), 'merged', 'c');
+    appendResult(tempDir, makeVerifyResult('#6', 85, true), 'merged', 'd');
+
+    const trend = getTrend(tempDir);
+    // avg = (77+77+82+85)/4 = 321/4 = 80.25 → 80
+    expect(trend.avg).toBe(80);
+    expect(trend.best.score).toBe(85);
+    expect(trend.best.refs).toEqual(['#6']);
+    expect(trend.worst.score).toBe(77);
+    expect(trend.worst.refs).toEqual(['#3', '#4']);
+  });
+
+  it('detects improving direction', () => {
+    appendResult(tempDir, makeVerifyResult('#1', 70, true), 'merged', 'old');
+    appendResult(tempDir, makeVerifyResult('#2', 90, true), 'merged', 'new');
+
+    const trend = getTrend(tempDir);
+    expect(trend.direction).toBe('improving');
+    expect(trend.delta).toBe(20);
+  });
+
+  it('detects declining direction', () => {
+    appendResult(tempDir, makeVerifyResult('#1', 90, true), 'merged', 'old');
+    appendResult(tempDir, makeVerifyResult('#2', 60, false), 'rejected', 'new');
+
+    const trend = getTrend(tempDir);
+    expect(trend.direction).toBe('declining');
+    expect(trend.delta).toBe(-30);
+  });
+
+  it('detects stable direction', () => {
+    appendResult(tempDir, makeVerifyResult('#1', 80, true), 'merged', 'first');
+    appendResult(tempDir, makeVerifyResult('#2', 80, true), 'merged', 'second');
+
+    const trend = getTrend(tempDir);
+    expect(trend.direction).toBe('stable');
+    expect(trend.delta).toBe(0);
+  });
+
+  it('returns null direction for single entry', () => {
+    appendResult(tempDir, makeVerifyResult('#1', 80, true), 'merged', 'only');
+
+    const trend = getTrend(tempDir);
+    expect(trend.direction).toBeNull();
+    expect(trend.delta).toBeNull();
+  });
+
+  it('preserves status from result rows', () => {
+    appendResult(tempDir, makeVerifyResult('#1', 80, true), 'merged', 'good');
+    appendResult(tempDir, makeVerifyResult('#2', 50, false), 'rejected', 'bad');
+    appendResult(tempDir, makeVerifyResult('#3', 70, true), 'pending', 'pending');
+
+    const trend = getTrend(tempDir);
+    expect(trend.entries[0].status).toBe('merged');
+    expect(trend.entries[1].status).toBe('rejected');
+    expect(trend.entries[2].status).toBe('pending');
   });
 });
 
