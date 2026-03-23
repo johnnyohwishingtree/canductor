@@ -46,4 +46,16 @@ Every template should have a matching rubric, and every rubric should reference 
 | `templates/story.md` | — | Story issues (no rubric needed) |
 | `templates/rubric.md` | Self | Rubric files |
 
+## Design Patterns
+
+Patterns are multi-file change recipes. They reference templates and rubrics:
+
+| Pattern | Templates used | When to follow |
+|---------|---------------|----------------|
+| `patterns/new-layer.md` | module, test | Adding a verification layer type |
+| `patterns/new-cli-command.md` | module, test | Adding a CLI subcommand |
+| `patterns/new-rubric.md` | rubric | Adding a quality dimension |
+| `patterns/extend-results.md` | module, test | Adding fields to the results log |
+| `patterns/new-core-module.md` | module, test | Adding a new domain module |
+
 <!-- canductor:template-version:1 -->

@@ -75,11 +75,24 @@ gh issue edit $NUMBER --repo johnnyohwishingtree/canductor --remove-label "pendi
 git fetch origin master && git checkout -b canductor/issue-$NUMBER origin/master
 ```
 
-Read the issue body and implement it. Follow CLAUDE.md rules and the templates:
-- **New source modules** → follow `.canductor/templates/module.md` (structure, imports, JSDoc, barrel export)
-- **New test files** → follow `.canductor/templates/test.md` (describe blocks, factories, happy + error paths)
-- **New rubrics** → follow `.canductor/templates/rubric.md` (weighted categories, observable criteria)
-- **New skills** → follow `.canductor/templates/skill.md` (frontmatter, numbered steps, discard path)
+Read the issue body and implement it. Follow CLAUDE.md rules, templates, and patterns.
+
+**Templates** (structure for individual files):
+- **New source modules** → `.canductor/templates/module.md`
+- **New test files** → `.canductor/templates/test.md`
+- **New rubrics** → `.canductor/templates/rubric.md`
+- **New skills** → `.canductor/templates/skill.md`
+
+**Patterns** (multi-file change recipes):
+- **Adding a verification layer type** → `.canductor/patterns/new-layer.md`
+- **Adding a CLI command** → `.canductor/patterns/new-cli-command.md`
+- **Adding a quality rubric** → `.canductor/patterns/new-rubric.md`
+- **Extending the results log** → `.canductor/patterns/extend-results.md`
+- **Adding a core module** → `.canductor/patterns/new-core-module.md`
+
+Read the relevant pattern before starting. Each pattern lists the exact files to touch, in order, with a checklist.
+
+**Always:**
 - Run `pnpm typecheck` after every file change
 - Run `pnpm test` before committing
 - Never use `any` types — fix the root cause
