@@ -31,7 +31,7 @@ gh pr list --repo johnnyohwishingtree/canductor --state open --json number,title
 
 For each open PR:
 1. Read the diff: `gh pr diff $NUMBER --repo johnnyohwishingtree/canductor`
-2. Review against `.canductor/rubrics/canductor-code-quality.md`
+2. Review against `.claude/rubrics/canductor-code-quality.md`
 3. If clean: approve and squash merge
 4. If issues: checkout the branch, fix them, run `pnpm build && pnpm typecheck && pnpm test`, push, then approve and squash merge
 
@@ -84,17 +84,17 @@ Read the issue body and implement it. The story body is your primary guide — i
 4. If the story doesn't have these sections (older stories), fall back to reading the files listed in "Files to Create/Modify" plus the templates/patterns below.
 
 **Templates** (structure for individual files):
-- **New source modules** → `.canductor/templates/module.md`
-- **New test files** → `.canductor/templates/test.md`
-- **New rubrics** → `.canductor/templates/rubric.md`
-- **New skills** → `.canductor/templates/skill.md`
+- **New source modules** → `.claude/templates/module.md`
+- **New test files** → `.claude/templates/test.md`
+- **New rubrics** → `.claude/templates/rubric.md`
+- **New skills** → `.claude/templates/skill.md`
 
 **Patterns** (multi-file change recipes):
-- **Adding a verification layer type** → `.canductor/patterns/new-layer.md`
-- **Adding a CLI command** → `.canductor/patterns/new-cli-command.md`
-- **Adding a quality rubric** → `.canductor/patterns/new-rubric.md`
-- **Extending the results log** → `.canductor/patterns/extend-results.md`
-- **Adding a core module** → `.canductor/patterns/new-core-module.md`
+- **Adding a verification layer type** → `.claude/patterns/new-layer.md`
+- **Adding a CLI command** → `.claude/patterns/new-cli-command.md`
+- **Adding a quality rubric** → `.claude/patterns/new-rubric.md`
+- **Extending the results log** → `.claude/patterns/extend-results.md`
+- **Adding a core module** → `.claude/patterns/new-core-module.md`
 
 Only read a pattern/template if the story references it or if you're doing that type of change.
 
@@ -117,7 +117,7 @@ After implementing, check if your changes affect the pipeline itself:
 
 If any updates are needed, make them now — include the skill file changes in your commit. The pipeline improves itself by keeping its own instructions current with the codebase it builds.
 
-If you created or modified any skill files (`.claude/skills/**/*.md`), also evaluate them against `.canductor/rubrics/skill-quality.md` before proceeding. Fix any issues the rubric identifies — skills are pipeline code, they need the same quality bar.
+If you created or modified any skill files (`.claude/skills/**/*.md`), also evaluate them against `.claude/rubrics/skill-quality.md` before proceeding. Fix any issues the rubric identifies — skills are pipeline code, they need the same quality bar.
 
 ### Step 5: Verify and fix loop
 
@@ -139,13 +139,13 @@ node packages/cli/dist/cli.js verify --self-review
 
 This outputs the rubric and code context for each agent-review layer. Read the output carefully and evaluate the code against:
 
-**Code quality** (`.canductor/rubrics/canductor-code-quality.md`):
+**Code quality** (`.claude/rubrics/canductor-code-quality.md`):
 - **Architecture (30%)**: small functions, correct dependency direction, no `any`, explicit error handling
 - **Verification Engine (25%)**: layers composable and independent, results log consistent
 - **Testing (25%)**: new functions have tests, happy path + at least one error path
 - **Code Style (20%)**: strict mode passes, no unused imports, barrel exports, camelCase/PascalCase
 
-**Test quality** (`.canductor/rubrics/test-quality.md`):
+**Test quality** (`.claude/rubrics/test-quality.md`):
 - **Coverage (35%)**: every export has a describe, happy + error paths tested
 - **Assertions (25%)**: specific values, not just existence checks
 - **Isolation (20%)**: temp dirs, no order dependency, minimal mocks
@@ -250,20 +250,20 @@ Analyze the project to identify the highest-impact improvement:
 4. Look for: missing features mentioned in CLAUDE.md, test coverage gaps, CLI commands listed but not implemented, error handling improvements
 
 Read the templates before creating issues:
-- `.canductor/templates/epic.md` — structure for epic bodies
-- `.canductor/templates/story.md` — structure for story bodies
+- `.claude/templates/epic.md` — structure for epic bodies
+- `.claude/templates/story.md` — structure for story bodies
 
 Create an epic and stories following the templates:
 ```bash
 # Create label
 gh label create "epic:<slug>" --repo johnnyohwishingtree/canductor --color "0E8A16" --description "Epic: <title>" 2>/dev/null || true
 
-# Create epic (body follows .canductor/templates/epic.md structure)
+# Create epic (body follows .claude/templates/epic.md structure)
 gh issue create --repo johnnyohwishingtree/canductor \
   --title "Epic: <goal>" --label "epic" --label "epic:<slug>" \
   --body "<follow epic template: goal, context, story checklist, success criteria, out of scope>"
 
-# Create 2-4 stories (body follows .canductor/templates/story.md structure)
+# Create 2-4 stories (body follows .claude/templates/story.md structure)
 # IMPORTANT: populate ALL template sections to minimize token waste during implementation:
 #   - Context: list the minimum files/line-ranges needed (prevents reading entire codebase)
 #   - Patterns & Templates: which patterns apply (prevents reverse-engineering conventions)
@@ -282,7 +282,7 @@ Story sizing rules:
 - Split steps that touch different layers (core vs cli)
 - If a story has no acceptance criteria beyond "files exist," merge it with another
 
-If a story involves creating a new skill, read `.canductor/templates/skill.md` and use it as the starting structure. Evaluate the new skill against `.canductor/rubrics/skill-quality.md`.
+If a story involves creating a new skill, read `.claude/templates/skill.md` and use it as the starting structure. Evaluate the new skill against `.claude/rubrics/skill-quality.md`.
 
 The next pipeline run will pick up the first new story.
 

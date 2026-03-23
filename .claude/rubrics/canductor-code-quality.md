@@ -1,6 +1,6 @@
 # Canductor Code Quality Rubric
 
-Evaluate TypeScript source modules (following `.canductor/templates/module.md`) against these criteria. Score each 0-100 and flag issues.
+Evaluate TypeScript source modules (following `.claude/templates/module.md`) against these criteria. Score each 0-100 and flag issues.
 
 ## Architecture (weight: 30%)
 - Functions are small and single-purpose

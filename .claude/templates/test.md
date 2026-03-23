@@ -2,7 +2,7 @@
 
 Test files in `packages/core/__tests__/` or `packages/cli/__tests__/` follow this structure.
 
-**Matching rubric:** `.canductor/rubrics/test-quality.md`
+**Matching rubric:** `.claude/rubrics/test-quality.md`
 
 ## Structure
 

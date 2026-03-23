@@ -28,8 +28,8 @@
 
 <Which patterns/templates apply to this story? The implementer reads these INSTEAD of reverse-engineering conventions from existing code.>
 
-- `.canductor/patterns/<relevant>.md` — <when to follow it>
-- `.canductor/templates/<relevant>.md` — <which files to structure this way>
+- `.claude/patterns/<relevant>.md` — <when to follow it>
+- `.claude/templates/<relevant>.md` — <which files to structure this way>
 
 If none apply, write "Standard — follow `templates/module.md` and `templates/test.md`."
 

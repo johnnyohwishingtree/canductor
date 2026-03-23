@@ -27,13 +27,15 @@ packages/
 
 .canductor/
 ├── config.yaml         # What "good" means (layers + policy)
-├── results.tsv         # Verification history (the "training data")
-└── rubrics/            # AI review criteria (markdown)
+└── results.tsv         # Verification history (the "training data")
 
 .claude/
 ├── skills/
 │   ├── pipeline/              # /pipeline — the autonomous story loop (scheduled task reads this)
 │   └── canductor-verify/      # /canductor-verify — run quality scoring manually
+├── templates/                 # Artifact structure definitions (epic, story, module, test, etc.)
+├── rubrics/                   # Quality evaluation criteria (code, test, skill quality)
+├── patterns/                  # Multi-file change recipes (new layer, CLI command, rubric, etc.)
 ├── hooks/                     # PostToolUse auto-typecheck, Stop session logging
 └── settings.json              # Hook configuration
 ```

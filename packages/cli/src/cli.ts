@@ -105,7 +105,7 @@ layers:
   #   name: ux_review
   #   type: agent-review
   #   model: claude-sonnet-4-6
-  #   rubric: ".canductor/rubrics/ux.md"
+  #   rubric: ".claude/rubrics/ux.md"
   #   context: ["src/", "docs/design-system.md"]
   #   weight: 0.6
 

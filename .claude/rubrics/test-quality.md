@@ -1,6 +1,6 @@
 # Test Quality Rubric
 
-Evaluate test files (following `.canductor/templates/test.md`) against these criteria.
+Evaluate test files (following `.claude/templates/test.md`) against these criteria.
 
 ## Coverage (weight: 35%)
 - Every exported function has a corresponding `describe` block

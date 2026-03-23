@@ -26,7 +26,7 @@ Run `pnpm typecheck` to verify type definitions compile.
 
 ### 2. `packages/core/src/<name>.ts` — Create the module
 
-Follow `.canductor/templates/module.md`:
+Follow `.claude/templates/module.md`:
 - Module-level JSDoc comment explaining purpose
 - Import order: Node builtins → external → local → types
 - Every export has JSDoc with `@param` and `@returns`
@@ -44,7 +44,7 @@ Run `pnpm typecheck` again — catches consumers that can't resolve the export.
 
 ### 4. `packages/core/__tests__/<name>.test.ts` — Create tests
 
-Follow `.canductor/templates/test.md`:
+Follow `.claude/templates/test.md`:
 - One `describe` per exported function
 - Happy path + at least one error path per function
 - Factory functions for test data

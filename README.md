@@ -112,7 +112,7 @@ layers:
   #   name: code_quality
   #   type: agent-review
   #   model: claude-sonnet-4-6
-  #   rubric: ".canductor/rubrics/code-quality.md"
+  #   rubric: ".claude/rubrics/code-quality.md"
   #   context: ["src/"]
   #   weight: 0.6
 
@@ -183,13 +183,15 @@ canductor suggest             Suggest rule improvements based on history
 .canductor/
 ├── config.yaml         # What "good" means (layers + policy)
 ├── results.tsv         # Verification history (the "training data")
-├── baselines/          # Screenshot baselines
-└── rubrics/            # AI review criteria (markdown)
+└── baselines/          # Screenshot baselines
 
 .claude/
 ├── skills/
 │   ├── pipeline/       # /pipeline — the autonomous loop (scheduled task reads this)
 │   └── canductor-verify/  # /canductor-verify — manual quality scoring
+├── templates/          # Artifact structure definitions (epic, story, module, test, etc.)
+├── rubrics/            # Quality evaluation criteria (code, test, skill quality)
+├── patterns/           # Multi-file change recipes (new layer, CLI command, rubric, etc.)
 ├── hooks/              # PostToolUse auto-typecheck, Stop session logging
 └── settings.json       # Hook configuration
 
