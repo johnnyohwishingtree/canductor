@@ -75,7 +75,13 @@ gh issue edit $NUMBER --repo johnnyohwishingtree/canductor --remove-label "pendi
 git fetch origin master && git checkout -b canductor/issue-$NUMBER origin/master
 ```
 
-Read the issue body and implement it. Follow CLAUDE.md rules, templates, and patterns.
+Read the issue body and implement it. The story body is your primary guide — it tells you exactly what to read and what to follow.
+
+**Token-efficient implementation order:**
+1. Read the story's **Context** section — these are the ONLY files you need to read. Do NOT explore the codebase beyond what's listed.
+2. Read the story's **Patterns & Templates** section — follow these INSTEAD of reverse-engineering conventions from existing code.
+3. Read the story's **Key Types** section — use these inline types instead of reading `types.ts`.
+4. If the story doesn't have these sections (older stories), fall back to reading the files listed in "Files to Create/Modify" plus the templates/patterns below.
 
 **Templates** (structure for individual files):
 - **New source modules** → `.canductor/templates/module.md`
@@ -90,7 +96,7 @@ Read the issue body and implement it. Follow CLAUDE.md rules, templates, and pat
 - **Extending the results log** → `.canductor/patterns/extend-results.md`
 - **Adding a core module** → `.canductor/patterns/new-core-module.md`
 
-Read the relevant pattern before starting. Each pattern lists the exact files to touch, in order, with a checklist.
+Only read a pattern/template if the story references it or if you're doing that type of change.
 
 **Always:**
 - Run `pnpm typecheck` after every file change
@@ -258,9 +264,13 @@ gh issue create --repo johnnyohwishingtree/canductor \
   --body "<follow epic template: goal, context, story checklist, success criteria, out of scope>"
 
 # Create 2-4 stories (body follows .canductor/templates/story.md structure)
+# IMPORTANT: populate ALL template sections to minimize token waste during implementation:
+#   - Context: list the minimum files/line-ranges needed (prevents reading entire codebase)
+#   - Patterns & Templates: which patterns apply (prevents reverse-engineering conventions)
+#   - Key Types: inline the relevant type definitions (prevents reading types.ts for 3 lines)
 gh issue create --repo johnnyohwishingtree/canductor \
   --title "Story: <task>" --label "story" --label "pending" --label "epic:<slug>" \
-  --body "<follow story template: parent epic, description, acceptance criteria, files to create/modify, dependencies, verification notes>"
+  --body "<follow story template — every section, especially Context, Patterns & Templates, and Key Types>"
 
 # Update epic body with actual issue numbers
 gh issue edit <epic_number> --repo johnnyohwishingtree/canductor --body "..."
