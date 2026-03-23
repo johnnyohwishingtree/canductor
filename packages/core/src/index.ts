@@ -9,6 +9,7 @@ export { evaluateExpression, evaluateAllPolicies, buildPolicyContext } from './p
 export type { PolicyContext } from './policy.js';
 export { runAgentReview, buildReviewPrompt, parseReviewJson } from './agent-review.js';
 export { injectContext, suggestRuleImprovements } from './feedback.js';
+export { detectToolchain } from './scaffold.js';
 export type {
   CanductorConfig,
   LayerConfig,
@@ -20,4 +21,5 @@ export type {
   AgentReviewResult,
   SelfReviewPrompt,
   RuleImprovement,
+  ProjectToolchain,
 } from './types.js';
