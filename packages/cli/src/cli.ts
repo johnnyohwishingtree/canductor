@@ -190,7 +190,7 @@ async function cmdVerify(): Promise<void> {
     }
   }
 
-  const result = await verify(ref, config, selfReviewResults);
+  const result = await verify(ref, config, selfReviewResults, repoRoot);
 
   if (jsonMode) {
     console.log(JSON.stringify({

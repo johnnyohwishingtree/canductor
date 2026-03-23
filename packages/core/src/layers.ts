@@ -186,7 +186,8 @@ export function getAgentReviewPrompt(layer: LayerConfig): SelfReviewPrompt | nul
  */
 export async function runLayer(
   layer: LayerConfig,
-  selfReviewResult?: AgentReviewResult
+  selfReviewResult?: AgentReviewResult,
+  repoRoot?: string
 ): Promise<LayerResult> {
   switch (layer.type) {
     case 'deterministic':
@@ -196,7 +197,7 @@ export async function runLayer(
     case 'agent-review':
       return runAgentReviewLayer(layer, selfReviewResult);
     case 'guardrail':
-      return runGuardrailLayer(layer, process.cwd());
+      return runGuardrailLayer(layer, repoRoot ?? process.cwd());
     default:
       return {
         name: layer.name,
