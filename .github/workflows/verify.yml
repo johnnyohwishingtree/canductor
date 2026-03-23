@@ -8,20 +8,24 @@ on:
       issue_number:
         required: false
         type: string
+      repo:
+        required: false
+        type: string
 
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
   issues: write
 
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.branch }}
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -35,15 +39,69 @@ jobs:
 
       - name: Run canductor verify
         id: verify
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          node packages/cli/dist/cli.js verify "${{ inputs.branch }}"
-          SCORE=$(node packages/cli/dist/cli.js score "${{ inputs.branch }}")
-          echo "score=$SCORE" >> "$GITHUB_OUTPUT"
+          RESULT=$(node packages/cli/dist/cli.js verify "${{ inputs.branch }}" --json 2>&1) || true
+          echo "$RESULT"
 
-      - name: Post results
+          SCORE=$(echo "$RESULT" | python3 -c "import sys,json; d=json.loads(sys.stdin.read()); print(d['score'])" 2>/dev/null || echo "0")
+          DECISION=$(echo "$RESULT" | python3 -c "import sys,json; d=json.loads(sys.stdin.read()); print(d['decision'])" 2>/dev/null || echo "block")
+          SUMMARY=$(echo "$RESULT" | python3 -c "import sys,json; d=json.loads(sys.stdin.read()); print(d['summary'][:500])" 2>/dev/null || echo "Verification failed")
+
+          echo "score=$SCORE" >> "$GITHUB_OUTPUT"
+          echo "decision=$DECISION" >> "$GITHUB_OUTPUT"
+          # Truncate summary to avoid multiline issues; full detail is in the comment
+          SUMMARY_ONELINE=$(echo "$SUMMARY" | tr '\n' ' ')
+          echo "summary=$SUMMARY_ONELINE" >> "$GITHUB_OUTPUT"
+
+          if [ "$DECISION" = "block" ]; then
+            echo "passed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "passed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Commit results to branch
+        run: |
+          git config user.name "canductor[bot]"
+          git config user.email "canductor[bot]@users.noreply.github.com"
+          git add .canductor/results.tsv 2>/dev/null || true
+          git diff --cached --quiet || git commit -m "chore: append verification result [skip ci]"
+          git push origin "${{ inputs.branch }}" || true
+
+      - name: Post results as issue comment
         if: inputs.issue_number != ''
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
-          gh issue comment "${{ inputs.issue_number }}" \
-            --body "Canductor verification: score **${{ steps.verify.outputs.score }}/100** on branch \`${{ inputs.branch }}\`"
+          BODY="## Canductor Verification
+
+**Score:** ${{ steps.verify.outputs.score }}/100 | **Decision:** \`${{ steps.verify.outputs.decision }}\`
+**Branch:** \`${{ inputs.branch }}\`
+
+${{ steps.verify.outputs.summary }}"
+          gh issue comment "${{ inputs.issue_number }}" --body "$BODY"
+
+      - name: Send verify.completed event to Inngest
+        if: env.INNGEST_EVENT_KEY != ''
+        env:
+          INNGEST_EVENT_KEY: ${{ secrets.INNGEST_EVENT_KEY }}
+          INNGEST_BASE_URL: ${{ secrets.INNGEST_BASE_URL }}
+        run: |
+          BASE_URL="${INNGEST_BASE_URL:-https://inn.gs}"
+          REPO="${{ inputs.repo || github.repository }}"
+          ISSUE_NUM="${{ inputs.issue_number || '0' }}"
+          SCORE="${{ steps.verify.outputs.score }}"
+          DECISION="${{ steps.verify.outputs.decision }}"
+          PASSED="${{ steps.verify.outputs.passed }}"
+          BRANCH="${{ inputs.branch }}"
+
+          curl -sf -X POST "$BASE_URL/e/$INNGEST_EVENT_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{\"name\":\"canductor/verify.completed\",\"data\":{\"branch\":\"$BRANCH\",\"repo\":\"$REPO\",\"issueNumber\":$ISSUE_NUM,\"score\":$SCORE,\"decision\":\"$DECISION\",\"passed\":$PASSED}}"
+
+      - name: Fail workflow on block decision
+        if: steps.verify.outputs.decision == 'block'
+        run: |
+          echo "Canductor decision: block (score ${{ steps.verify.outputs.score }}/100). Failing workflow."
+          exit 1

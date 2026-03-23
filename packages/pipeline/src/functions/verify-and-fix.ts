@@ -10,30 +10,34 @@ export const verifyAndFix = inngest.createFunction(
     let attempt = 0;
 
     while (attempt < MAX_ATTEMPTS) {
-      // Verify: dispatch the verification workflow
+      // Dispatch the verification workflow
       await step.run(`verify-${attempt}`, async () => {
         const gh = await import('../github.js');
         await gh.dispatchWorkflow(repo, 'verify.yml', {
           branch,
           issue_number: String(issueNumber ?? ''),
+          repo,
         });
         return { dispatched: true, attempt };
       });
 
-      // Wait for verification result
-      const ciResult = await step.waitForEvent(`wait-ci-${attempt}`, {
-        event: 'canductor/ci.completed',
+      // Wait for canductor verify.completed event (sent by verify.yml)
+      const verifyResult = await step.waitForEvent(`wait-ci-${attempt}`, {
+        event: 'canductor/verify.completed',
         match: 'data.branch',
         timeout: '30m',
       });
 
-      if (!ciResult) {
-        // CI timed out
+      if (!verifyResult) {
+        // Verification timed out
         break;
       }
 
-      if (ciResult.data.passed) {
-        // Verification passed — create PR and merge
+      const { score, decision } = verifyResult.data;
+      const passed = decision !== 'block';
+
+      if (passed) {
+        // Verification passed — create PR and trigger merge evaluation
         const prNumber = await step.run('create-pr', async () => {
           const gh = await import('../github.js');
           const pr = await gh.createPR(
@@ -46,12 +50,13 @@ export const verifyAndFix = inngest.createFunction(
           return pr;
         });
 
-        // Log canductor result
+        // Log result status update
         await step.run('log-result', async () => {
-          // Would call appendResult here
+          // Results are appended by verify.yml (canductor verify CLI).
+          // Update the last entry status to merged once PR is created.
         });
 
-        // Dispatch auto-merge evaluation
+        // Trigger auto-merge evaluation
         await step.run('request-merge', async () => {
           await inngest.send({
             name: 'canductor/ci.completed',
@@ -62,19 +67,21 @@ export const verifyAndFix = inngest.createFunction(
         return { status: 'verified', branch, attempt, prNumber };
       }
 
-      // Verification failed — dispatch fix
+      // Verification failed (decision: block) — dispatch agent to fix
       attempt++;
       if (attempt < MAX_ATTEMPTS) {
+        const fixPrompt = `Fix attempt ${attempt}/${MAX_ATTEMPTS}. Verification score: ${score}/100, decision: ${decision}. Fix the errors and push to the branch.`;
+
         await step.run(`fix-${attempt}`, async () => {
           const gh = await import('../github.js');
           await gh.dispatchWorkflow(repo, 'agent.yml', {
             issue_number: String(issueNumber ?? ''),
             branch,
-            prompt: `Fix attempt ${attempt}/${MAX_ATTEMPTS}. The verification failed. Fix the errors and push to the branch.`,
+            prompt: fixPrompt,
           });
         });
 
-        // Wait for fix to complete
+        // Wait for agent to push code (triggers verify.requested)
         await step.waitForEvent(`wait-fix-${attempt}`, {
           event: 'canductor/verify.requested',
           match: 'data.branch',
