@@ -218,20 +218,24 @@ Analyze the project to identify the highest-impact improvement:
    ```
 4. Look for: missing features mentioned in CLAUDE.md, test coverage gaps, CLI commands listed but not implemented, error handling improvements
 
-Create an epic and stories:
+Read the templates before creating issues:
+- `.canductor/templates/epic.md` — structure for epic bodies
+- `.canductor/templates/story.md` — structure for story bodies
+
+Create an epic and stories following the templates:
 ```bash
 # Create label
 gh label create "epic:<slug>" --repo johnnyohwishingtree/canductor --color "0E8A16" --description "Epic: <title>" 2>/dev/null || true
 
-# Create epic
+# Create epic (body follows .canductor/templates/epic.md structure)
 gh issue create --repo johnnyohwishingtree/canductor \
   --title "Epic: <goal>" --label "epic" --label "epic:<slug>" \
-  --body "<goal, story checklist with issue numbers, success criteria>"
+  --body "<follow epic template: goal, context, story checklist, success criteria, out of scope>"
 
-# Create 2-4 stories (each completable in one session)
+# Create 2-4 stories (body follows .canductor/templates/story.md structure)
 gh issue create --repo johnnyohwishingtree/canductor \
   --title "Story: <task>" --label "story" --label "pending" --label "epic:<slug>" \
-  --body "<description, acceptance criteria, files to modify, dependencies>"
+  --body "<follow story template: parent epic, description, acceptance criteria, files to create/modify, dependencies, verification notes>"
 
 # Update epic body with actual issue numbers
 gh issue edit <epic_number> --repo johnnyohwishingtree/canductor --body "..."
@@ -242,6 +246,8 @@ Story sizing rules:
 - Combine tightly coupled small steps into one story
 - Split steps that touch different layers (core vs cli)
 - If a story has no acceptance criteria beyond "files exist," merge it with another
+
+If a story involves creating a new skill, read `.canductor/templates/skill.md` and use it as the starting structure. Evaluate the new skill against `.canductor/rubrics/skill-quality.md`.
 
 The next pipeline run will pick up the first new story.
 
