@@ -12,6 +12,7 @@ export type CanductorEvents = {
       repo: string;
       approved: boolean;
       feedback?: string;
+      reviewRound?: number;
     };
   };
   'canductor/ci.completed': {

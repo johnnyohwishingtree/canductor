@@ -106,6 +106,18 @@ export async function dispatchWorkflow(
   });
 }
 
+/** Get all review comments from a pull request as a formatted string. */
+export async function getPRReviewComments(repo: string, prNumber: number): Promise<string> {
+  const octokit = getOctokit();
+  const { owner, repo: repoName } = parseRepo(repo);
+  const { data } = await octokit.pulls.listReviews({ owner, repo: repoName, pull_number: prNumber });
+  const comments = data
+    .filter((r) => r.body && r.state !== 'APPROVED')
+    .map((r) => `[${r.user?.login ?? 'reviewer'}]: ${r.body}`)
+    .join('\n\n');
+  return comments || 'No specific comments provided.';
+}
+
 /** Close an issue and optionally add labels. */
 export async function closeIssue(
   repo: string,

@@ -86,3 +86,10 @@ pnpm typecheck      # Type check all packages
 - **TSV for results**: Committed to repo, no external database needed
 - **Rubric-based evaluation**: Quality criteria defined in markdown, evaluated by LLM
 - **GitHub Actions only for agent execution**: claude-code-action requires GH Actions; everything else runs in Inngest
+
+<!-- canductor:start -->
+## Canductor Quality Context
+
+Current baseline quality score: 0/100
+
+<!-- canductor:end -->
