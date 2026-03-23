@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { detectToolchain, scaffoldRubric } from '../src/scaffold.js';
+import { detectToolchain, scaffoldRubric, runFirstVerification } from '../src/scaffold.js';
 
 // ---------------------------------------------------------------------------
 // Test fixtures
@@ -156,5 +156,87 @@ describe('scaffoldRubric', () => {
     scaffoldRubric(tempDir);
 
     expect(existsSync(join(tempDir, '.canductor', 'rubrics'))).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// runFirstVerification
+// ---------------------------------------------------------------------------
+
+function writeConfig(dir: string, content: string): void {
+  const configDir = join(dir, '.canductor');
+  if (!existsSync(configDir)) mkdirSync(configDir, { recursive: true });
+  writeFileSync(join(configDir, 'config.yaml'), content);
+}
+
+describe('runFirstVerification', () => {
+  it('runs verification and returns result with score', async () => {
+    writeConfig(tempDir, `version: 1
+layers:
+  check:
+    name: check
+    type: deterministic
+    run: "echo ok"
+    weight: 1.0
+policy:
+  auto_merge: "all_deterministic_pass"
+  human_review: "false"
+  block: "any_deterministic_fail"
+`);
+
+    const result = await runFirstVerification(tempDir);
+
+    expect(result).not.toBeNull();
+    expect(result!.composite_score).toBe(100);
+    expect(result!.ref).toBe('init');
+  });
+
+  it('appends result to results.tsv', async () => {
+    writeConfig(tempDir, `version: 1
+layers:
+  check:
+    name: check
+    type: deterministic
+    run: "echo ok"
+    weight: 1.0
+policy:
+  auto_merge: "all_deterministic_pass"
+  human_review: "false"
+  block: "any_deterministic_fail"
+`);
+
+    await runFirstVerification(tempDir);
+
+    const resultsPath = join(tempDir, '.canductor', 'results.tsv');
+    expect(existsSync(resultsPath)).toBe(true);
+    const content = readFileSync(resultsPath, 'utf-8');
+    expect(content).toContain('init');
+    expect(content).toContain('Initial setup');
+  });
+
+  it('sets baseline in config', async () => {
+    writeConfig(tempDir, `version: 1
+layers:
+  check:
+    name: check
+    type: deterministic
+    run: "echo ok"
+    weight: 1.0
+policy:
+  auto_merge: "all_deterministic_pass"
+  human_review: "false"
+  block: "any_deterministic_fail"
+`);
+
+    await runFirstVerification(tempDir);
+
+    const configContent = readFileSync(join(tempDir, '.canductor', 'config.yaml'), 'utf-8');
+    expect(configContent).toContain('baseline: 100');
+  });
+
+  it('returns null when config does not exist', async () => {
+    const result = await runFirstVerification(tempDir);
+
+    expect(result).toBeNull();
   });
 });

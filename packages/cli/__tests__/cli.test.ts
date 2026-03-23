@@ -85,11 +85,15 @@ describe('canductor init', () => {
   });
 
   it('creates config file in target directory', () => {
+    // Provide a package.json so init generates fast commands for first verification
+    writeFileSync(join(initDir, 'package.json'), JSON.stringify({
+      scripts: { test: 'echo ok', typecheck: 'echo ok' },
+    }));
     const { stdout, exitCode } = runCli('init', initDir);
     expect(exitCode).toBe(0);
     expect(stdout).toContain('Created .canductor/config.yaml');
     expect(existsSync(join(initDir, '.canductor', 'config.yaml'))).toBe(true);
-  });
+  }, 15000);
 
   it('reports existing config without overwriting', () => {
     setupConfig(initDir);
