@@ -121,12 +121,12 @@ All instructions live in the repo (versioned, improvable by the pipeline itself)
 <!-- canductor:start -->
 ## Canductor Quality Context
 
-Current baseline quality score: 0/100
+Current baseline quality score: 99/100
 
 ### Recent verification results:
-- pipeline-migration: score=77 pending (Verified pipeline-migration)
 - 18: score=98 pending (Verified 18)
 - 21: score=98 pending (Verified 21)
 - 22: score=98 pending (Verified 22)
 - 23: score=98 pending (Verified 23)
+- 28: score=99 merged (Verified 28)
 <!-- canductor:end -->
