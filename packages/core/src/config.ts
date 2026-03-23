@@ -8,9 +8,14 @@ import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import { z } from 'zod';
 import type { CanductorConfig } from './types.js';
 
+const GuardrailPatternSchema = z.object({
+  pattern: z.string(),
+  message: z.string(),
+});
+
 const LayerSchema = z.object({
   name: z.string(),
-  type: z.enum(['deterministic', 'screenshot-diff', 'agent-review']),
+  type: z.enum(['deterministic', 'screenshot-diff', 'agent-review', 'guardrail']),
   run: z.string().optional(),
   capture: z.string().optional(),
   baseline: z.string().optional(),
@@ -18,6 +23,9 @@ const LayerSchema = z.object({
   model: z.string().optional(),
   rubric: z.string().optional(),
   context: z.array(z.string()).optional(),
+  include: z.array(z.string()).optional(),
+  exclude: z.array(z.string()).optional(),
+  patterns: z.array(GuardrailPatternSchema).optional(),
   weight: z.number().min(0).max(1),
 });
 

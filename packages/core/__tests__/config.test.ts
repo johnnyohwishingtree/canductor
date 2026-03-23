@@ -183,3 +183,134 @@ policy:
     }
   });
 });
+
+describe('loadConfig guardrail layer', () => {
+  it('accepts a guardrail layer with include, exclude, and patterns', () => {
+    writeConfig(`version: 1
+layers:
+  security:
+    name: security
+    type: guardrail
+    include:
+      - "src/**/*.ts"
+    exclude:
+      - "**/*.test.ts"
+    patterns:
+      - pattern: "eval\\\\("
+        message: "Do not use eval()"
+      - pattern: "console\\\\.log"
+        message: "Remove console.log"
+    weight: 0.3
+policy:
+  auto_merge: "all_pass"
+  human_review: "false"
+  block: "any_fail"
+`);
+    const config = loadConfig(tempDir);
+    expect(config.layers.security.type).toBe('guardrail');
+    expect(config.layers.security.include).toEqual(['src/**/*.ts']);
+    expect(config.layers.security.exclude).toEqual(['**/*.test.ts']);
+    expect(config.layers.security.patterns).toEqual([
+      { pattern: 'eval\\(', message: 'Do not use eval()' },
+      { pattern: 'console\\.log', message: 'Remove console.log' },
+    ]);
+  });
+
+  it('accepts a guardrail layer with only patterns (no include/exclude)', () => {
+    writeConfig(`version: 1
+layers:
+  lint:
+    name: lint
+    type: guardrail
+    patterns:
+      - pattern: "TODO"
+        message: "Resolve TODOs before merging"
+    weight: 0.5
+policy:
+  auto_merge: "all_pass"
+  human_review: "false"
+  block: "any_fail"
+`);
+    const config = loadConfig(tempDir);
+    expect(config.layers.lint.type).toBe('guardrail');
+    expect(config.layers.lint.include).toBeUndefined();
+    expect(config.layers.lint.exclude).toBeUndefined();
+    expect(config.layers.lint.patterns).toHaveLength(1);
+  });
+
+  it('accepts a guardrail layer with no optional fields', () => {
+    writeConfig(`version: 1
+layers:
+  guard:
+    name: guard
+    type: guardrail
+    weight: 0.2
+policy:
+  auto_merge: "all_pass"
+  human_review: "false"
+  block: "any_fail"
+`);
+    const config = loadConfig(tempDir);
+    expect(config.layers.guard.type).toBe('guardrail');
+    expect(config.layers.guard.patterns).toBeUndefined();
+  });
+
+  it('rejects guardrail pattern missing message field', () => {
+    writeConfig(`version: 1
+layers:
+  guard:
+    name: guard
+    type: guardrail
+    patterns:
+      - pattern: "eval"
+    weight: 0.2
+policy:
+  auto_merge: "all_pass"
+  human_review: "false"
+  block: "any_fail"
+`);
+    expect(() => loadConfig(tempDir)).toThrow();
+  });
+
+  it('rejects guardrail pattern missing pattern field', () => {
+    writeConfig(`version: 1
+layers:
+  guard:
+    name: guard
+    type: guardrail
+    patterns:
+      - message: "bad pattern"
+    weight: 0.2
+policy:
+  auto_merge: "all_pass"
+  human_review: "false"
+  block: "any_fail"
+`);
+    expect(() => loadConfig(tempDir)).toThrow();
+  });
+
+  it('works alongside deterministic layers', () => {
+    writeConfig(`version: 1
+layers:
+  tests:
+    name: tests
+    type: deterministic
+    run: "npm test"
+    weight: 0.7
+  guard:
+    name: guard
+    type: guardrail
+    patterns:
+      - pattern: "debugger"
+        message: "Remove debugger statements"
+    weight: 0.3
+policy:
+  auto_merge: "all_pass"
+  human_review: "false"
+  block: "any_fail"
+`);
+    const config = loadConfig(tempDir);
+    expect(config.layers.tests.type).toBe('deterministic');
+    expect(config.layers.guard.type).toBe('guardrail');
+  });
+});
