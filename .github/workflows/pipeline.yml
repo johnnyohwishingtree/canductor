@@ -1,0 +1,129 @@
+name: Pipeline
+
+on:
+  schedule:
+    - cron: '*/20 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: write
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Find and process next story
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          REPO="${{ github.repository }}"
+
+          # Find next pending story
+          ISSUE=$(gh issue list --repo "$REPO" --label "story,pending" --state open \
+            --json number,title --jq '.[0]')
+
+          if [ -z "$ISSUE" ] || [ "$ISSUE" = "null" ]; then
+            echo "No pending stories"
+            exit 0
+          fi
+
+          NUMBER=$(echo "$ISSUE" | jq -r '.number')
+          TITLE=$(echo "$ISSUE" | jq -r '.title')
+          echo "Processing story #$NUMBER: $TITLE"
+
+          # Skip if agent is already running for any canductor/ branch
+          ACTIVE=$(gh run list --repo "$REPO" --workflow agent.yml --status in_progress \
+            --json databaseId --jq 'length')
+          if [ "$ACTIVE" -gt 0 ]; then
+            echo "Agent already running — skipping"
+            exit 0
+          fi
+
+          # Mark in-progress
+          gh issue edit "$NUMBER" --repo "$REPO" --remove-label "pending" --add-label "in-progress"
+
+          # Create branch
+          SHA=$(gh api "repos/$REPO/git/ref/heads/master" --jq '.object.sha')
+          BRANCH="canductor/issue-${NUMBER}"
+          gh api "repos/$REPO/git/refs" -f ref="refs/heads/$BRANCH" -f sha="$SHA" 2>/dev/null || true
+
+          # Get issue body for prompt
+          BODY=$(gh issue view "$NUMBER" --repo "$REPO" --json body --jq '.body')
+
+          # Dispatch agent
+          gh workflow run agent.yml --repo "$REPO" \
+            -f issue_number="$NUMBER" \
+            -f branch="$BRANCH" \
+            -f prompt="Read CLAUDE.md first for project context.
+
+          Implement this issue:
+          Title: $TITLE
+
+          $BODY
+
+          After implementing:
+          1. Run pnpm typecheck && pnpm test
+          2. git add changed files
+          3. git commit with message containing 'Closes #$NUMBER'
+          4. git push origin $BRANCH
+
+          Closes #$NUMBER"
+
+          gh issue comment "$NUMBER" --repo "$REPO" \
+            --body "Pipeline picked up this story. Dispatched agent on branch \`$BRANCH\`."
+
+      - name: Check for completed agent runs needing PR
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          REPO="${{ github.repository }}"
+
+          # Find in-progress stories with branches that have commits but no PR
+          gh issue list --repo "$REPO" --label "story,in-progress" --state open \
+            --json number --jq '.[].number' | while read -r NUMBER; do
+
+            BRANCH="canductor/issue-${NUMBER}"
+
+            # Check if branch has commits ahead of master
+            AHEAD=$(gh api "repos/$REPO/compare/master...$BRANCH" \
+              --jq '.ahead_by' 2>/dev/null || echo "0")
+
+            if [ "$AHEAD" -eq 0 ]; then
+              continue
+            fi
+
+            # Check if PR already exists
+            EXISTING_PR=$(gh pr list --repo "$REPO" --head "$BRANCH" \
+              --json number --jq '.[0].number' 2>/dev/null || echo "")
+
+            if [ -n "$EXISTING_PR" ]; then
+              # PR exists — merge if no failing checks
+              STATE=$(gh pr view "$EXISTING_PR" --repo "$REPO" \
+                --json mergeable --jq '.mergeable' 2>/dev/null || echo "")
+
+              if [ "$STATE" = "MERGEABLE" ]; then
+                echo "Merging PR #$EXISTING_PR for story #$NUMBER"
+                gh pr merge "$EXISTING_PR" --repo "$REPO" --squash --admin || true
+                gh issue edit "$NUMBER" --repo "$REPO" \
+                  --remove-label "in-progress" --add-label "completed"
+                gh issue close "$NUMBER" --repo "$REPO" 2>/dev/null || true
+              fi
+              continue
+            fi
+
+            # No PR yet — create one
+            TITLE=$(gh issue view "$NUMBER" --repo "$REPO" --json title --jq '.title')
+            echo "Creating PR for story #$NUMBER"
+            gh pr create --repo "$REPO" --head "$BRANCH" --base master \
+              --title "$TITLE" \
+              --body "Closes #$NUMBER
+
+          Autonomously implemented by canductor pipeline." || true
+
+          done
