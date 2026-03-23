@@ -68,3 +68,118 @@ describe('loadConfig with baseline', () => {
     expect(config.baseline).toBe(75);
   });
 });
+
+describe('loadConfig validation', () => {
+  it('loads a valid config successfully', () => {
+    writeConfig(minimalConfig);
+    const config = loadConfig(tempDir);
+    expect(config.version).toBe(1);
+    expect(config.layers.tests.name).toBe('tests');
+    expect(config.layers.tests.type).toBe('deterministic');
+    expect(config.layers.tests.weight).toBe(1.0);
+  });
+
+  it('throws when version is missing', () => {
+    writeConfig(`layers:
+  tests:
+    name: tests
+    type: deterministic
+    run: "npm test"
+    weight: 1.0
+policy:
+  auto_merge: "all_pass"
+  human_review: "false"
+  block: "any_fail"
+`);
+    expect(() => loadConfig(tempDir)).toThrow();
+  });
+
+  it('throws when version is not 1', () => {
+    writeConfig(minimalConfig.replace('version: 1', 'version: 2'));
+    expect(() => loadConfig(tempDir)).toThrow();
+  });
+
+  it('throws when layer weight is missing', () => {
+    writeConfig(`version: 1
+layers:
+  tests:
+    name: tests
+    type: deterministic
+    run: "npm test"
+policy:
+  auto_merge: "all_pass"
+  human_review: "false"
+  block: "any_fail"
+`);
+    expect(() => loadConfig(tempDir)).toThrow();
+  });
+
+  it('throws when layer weight is a string', () => {
+    writeConfig(minimalConfig.replace('weight: 1.0', 'weight: "high"'));
+    expect(() => loadConfig(tempDir)).toThrow();
+  });
+
+  it('throws when layer type is unknown', () => {
+    writeConfig(minimalConfig.replace('type: deterministic', 'type: magic'));
+    expect(() => loadConfig(tempDir)).toThrow();
+  });
+
+  it('throws when policy is missing', () => {
+    writeConfig(`version: 1
+layers:
+  tests:
+    name: tests
+    type: deterministic
+    run: "npm test"
+    weight: 1.0
+`);
+    expect(() => loadConfig(tempDir)).toThrow();
+  });
+
+  it('throws when no config file exists', () => {
+    expect(() => loadConfig(tempDir)).toThrow('No canductor config found');
+  });
+
+  it('accepts all optional layer fields', () => {
+    writeConfig(`version: 1
+layers:
+  review:
+    name: review
+    type: agent-review
+    model: claude-sonnet-4-20250514
+    rubric: rubrics/quality.md
+    context:
+      - src/
+    weight: 0.5
+  visual:
+    name: visual
+    type: screenshot-diff
+    capture: "npm run screenshot"
+    baseline: screenshots/
+    threshold: 0.01
+    weight: 0.5
+policy:
+  auto_merge: "all_pass"
+  human_review: "false"
+  block: "any_fail"
+`);
+    const config = loadConfig(tempDir);
+    expect(config.layers.review.model).toBe('claude-sonnet-4-20250514');
+    expect(config.layers.review.rubric).toBe('rubrics/quality.md');
+    expect(config.layers.review.context).toEqual(['src/']);
+    expect(config.layers.visual.capture).toBe('npm run screenshot');
+    expect(config.layers.visual.baseline).toBe('screenshots/');
+    expect(config.layers.visual.threshold).toBe(0.01);
+  });
+
+  it('includes field path in validation error message', () => {
+    writeConfig(minimalConfig.replace('weight: 1.0', 'weight: "bad"'));
+    try {
+      loadConfig(tempDir);
+      expect.fail('should have thrown');
+    } catch (err) {
+      const message = (err as Error).message;
+      expect(message).toContain('weight');
+    }
+  });
+});
