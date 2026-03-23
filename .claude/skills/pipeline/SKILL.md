@@ -83,14 +83,18 @@ Read the issue body and implement it. Follow CLAUDE.md rules:
 - Every new module needs tests
 - Dependencies flow: cli -> core. Never the reverse.
 
-### Step 5: Verify before pushing
+### Step 5: Verify and fix loop
 
-Run the deterministic checks:
+This is the core quality gate. Keep iterating until verification passes or you exhaust all attempts.
+
+**Attempt 1 of 6:**
+
+Run deterministic checks:
 ```bash
 pnpm build && pnpm typecheck && pnpm test
 ```
 
-If any fail, fix and retry (up to 3 attempts).
+If any fail, read the errors, fix them, and re-run. Do not proceed until both pass.
 
 Then self-review against the rubric at `.canductor/rubrics/canductor-code-quality.md`:
 - **Architecture (30%)**: small functions, correct dependency direction, no `any`, explicit error handling
@@ -98,14 +102,43 @@ Then self-review against the rubric at `.canductor/rubrics/canductor-code-qualit
 - **Testing (25%)**: new functions have tests, happy path + at least one error path
 - **Code Style (20%)**: strict mode passes, no unused imports, barrel exports, camelCase/PascalCase
 
-If your self-review score is below 80, fix the issues before proceeding.
+Score yourself honestly (0-100). If below 80, identify the specific issues, fix them, and re-score.
 
-Log the result with canductor verify:
+Once you believe the code is ready, run canductor verify:
 ```bash
 node packages/cli/dist/cli.js verify "$NUMBER"
 ```
 
-### Step 6: Push, PR, merge, close
+Read the decision:
+- **`auto_merge`**: proceed to Step 6.
+- **`block`** or **`human_review`**: read the error summary, fix the issues, and loop back to the top of Step 5. This counts as your next attempt.
+
+**You have up to 6 attempts.** Each attempt: fix -> typecheck -> test -> rubric review -> canductor verify. Use the error output from each failed verify to guide your fixes.
+
+### Step 5b: If verification fails after 6 attempts — discard
+
+If after 6 attempts the decision is still not `auto_merge`:
+
+1. Push the branch and create a PR anyway (so the work is visible), but do **NOT** merge:
+   ```bash
+   git add <specific files>
+   git commit -m "WIP: #$NUMBER — failed verification after 6 attempts"
+   git push -u origin canductor/issue-$NUMBER
+   TITLE=$(gh issue view $NUMBER --repo johnnyohwishingtree/canductor --json title --jq .title)
+   gh pr create --repo johnnyohwishingtree/canductor \
+     --head canductor/issue-$NUMBER --base master \
+     --title "WIP: $TITLE" \
+     --body "Failed canductor verification after 6 attempts. Needs human review. Ref: #$NUMBER"
+   ```
+2. Reset the issue so a future run can retry:
+   ```bash
+   gh issue edit $NUMBER --repo johnnyohwishingtree/canductor --remove-label "in-progress" --add-label "pending"
+   gh issue comment $NUMBER --repo johnnyohwishingtree/canductor \
+     --body "Pipeline failed to meet quality threshold after 6 attempts. WIP PR created for visibility. Resetting to pending."
+   ```
+3. **Stop.** Do not proceed to Step 6 or Step 7.
+
+### Step 6: Push, PR, merge, close (only if Step 5 passed)
 
 ```bash
 git add <specific files> # never git add -A
