@@ -223,6 +223,83 @@ export function diffResults(repoRoot: string, ref1: string, ref2: string): DiffR
   };
 }
 
+/** A summary of pipeline health derived from the results log. */
+export interface PipelineStatus {
+  total: number;
+  merged: number;
+  rejected: number;
+  pending: number;
+  baseline: number;
+  lastScore: number | null;
+  lastRef: string | null;
+  lastStatus: 'merged' | 'rejected' | 'pending' | null;
+  /** Average score of the 5 runs before the most recent 5. */
+  trendOld: number | null;
+  /** Average score of the most recent 5 runs. */
+  trendNew: number | null;
+  trendDirection: 'improving' | 'declining' | 'stable' | null;
+  recurringIssues: string[];
+}
+
+/**
+ * Compute a quick pipeline health summary from the results log.
+ */
+export function getStatus(repoRoot: string): PipelineStatus {
+  const results = readResults(repoRoot);
+
+  if (results.length === 0) {
+    return {
+      total: 0, merged: 0, rejected: 0, pending: 0,
+      baseline: 0, lastScore: null, lastRef: null, lastStatus: null,
+      trendOld: null, trendNew: null, trendDirection: null,
+      recurringIssues: [],
+    };
+  }
+
+  const total = results.length;
+  const merged = results.filter(r => r.status === 'merged').length;
+  const rejected = results.filter(r => r.status === 'rejected').length;
+  const pending = results.filter(r => r.status === 'pending').length;
+
+  const mergedScores = results
+    .filter(r => r.status === 'merged')
+    .map(r => r.composite_score)
+    .slice(-5);
+  const baseline = mergedScores.length > 0
+    ? Math.round(mergedScores.reduce((a, b) => a + b, 0) / mergedScores.length)
+    : 0;
+
+  const last = results[results.length - 1];
+
+  const avg = (arr: number[]): number | null =>
+    arr.length > 0 ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : null;
+
+  const recent10 = results.slice(-10);
+  const trendNew = avg(recent10.slice(-5).map(r => r.composite_score));
+  const trendOld = avg(recent10.slice(0, Math.max(0, recent10.length - 5)).map(r => r.composite_score));
+
+  let trendDirection: PipelineStatus['trendDirection'] = null;
+  if (trendNew !== null && trendOld !== null) {
+    if (trendNew > trendOld) trendDirection = 'improving';
+    else if (trendNew < trendOld) trendDirection = 'declining';
+    else trendDirection = 'stable';
+  }
+
+  const ctx = analyzeResults(repoRoot);
+
+  return {
+    total, merged, rejected, pending,
+    baseline,
+    lastScore: last.composite_score,
+    lastRef: last.ref,
+    lastStatus: last.status,
+    trendOld,
+    trendNew,
+    trendDirection,
+    recurringIssues: ctx.recurring_issues,
+  };
+}
+
 /**
  * Generate a context block to inject into agent prompts.
  * This is what makes the agent "learn" from past results.

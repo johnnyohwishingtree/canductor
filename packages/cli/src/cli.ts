@@ -22,6 +22,7 @@ import {
   injectContext,
   suggestRuleImprovements,
   diffResults,
+  getStatus,
 } from '@canductor/core';
 import { writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -36,6 +37,7 @@ function printUsage(): void {
 Usage:
   canductor verify [ref]        Run all layers, log result, print decision
   canductor score [ref]         Run layers, print composite score only
+  canductor status              Show pipeline health overview
   canductor history             Show results history table
   canductor diff <ref1> <ref2>  Compare quality scores between two refs
   canductor context             Generate quality context for agent prompts
@@ -201,6 +203,36 @@ function cmdDiff(): void {
   console.log('');
 }
 
+function cmdStatus(): void {
+  const s = getStatus(repoRoot);
+
+  if (s.total === 0) {
+    console.log('No results yet. Run: canductor verify');
+    return;
+  }
+
+  console.log('Canductor Status');
+  console.log('================');
+  console.log(`Results:     ${s.total} total (${s.merged} merged, ${s.rejected} rejected, ${s.pending} pending)`);
+  console.log(`Baseline:    ${s.baseline}/100`);
+
+  if (s.lastScore !== null) {
+    console.log(`Last score:  ${s.lastScore}/100 (${s.lastRef}, ${s.lastStatus})`);
+  }
+
+  if (s.trendDirection !== null && s.trendOld !== null && s.trendNew !== null) {
+    const arrow = s.trendDirection === 'improving' ? '↑' : s.trendDirection === 'declining' ? '↓' : '→';
+    console.log(`Trend:       ${arrow} ${s.trendDirection} (last 5 avg: ${s.trendOld} → ${s.trendNew})`);
+  }
+
+  if (s.recurringIssues.length > 0) {
+    const label = s.recurringIssues.length === 1 ? 'issue' : 'issues';
+    console.log(`Recurring:   ${s.recurringIssues.length} ${label} (${s.recurringIssues[0]})`);
+  } else {
+    console.log('Recurring:   none');
+  }
+}
+
 function cmdContext(): void {
   const context = generatePromptContext(repoRoot);
   console.log(context);
@@ -247,6 +279,9 @@ async function main(): Promise<void> {
       break;
     case 'score':
       await cmdScore();
+      break;
+    case 'status':
+      cmdStatus();
       break;
     case 'history':
       cmdHistory();

@@ -83,3 +83,10 @@ pnpm typecheck      # Type check all packages
 - **TSV for results**: Committed to repo, no external database needed
 - **Rubric-based evaluation**: Quality criteria defined in markdown, evaluated by LLM
 - **Hooks for automation**: PostToolUse auto-typechecks, Stop logs sessions
+
+<!-- canductor:start -->
+## Canductor Quality Context
+
+Current baseline quality score: 0/100
+
+<!-- canductor:end -->

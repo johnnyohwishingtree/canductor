@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { appendResult, readResults, analyzeResults, generatePromptContext, diffResults } from '../src/results.js';
+import { appendResult, readResults, analyzeResults, generatePromptContext, diffResults, getStatus } from '../src/results.js';
 import type { VerifyResult } from '../src/types.js';
 
 let tempDir: string;
@@ -128,6 +128,92 @@ describe('diffResults', () => {
 
     const testsLayer = diff!.layers.find(l => l.name === 'tests');
     expect(testsLayer!.change).toBe('regressed');
+  });
+});
+
+describe('getStatus', () => {
+  it('returns zero totals and nulls when no results exist', () => {
+    const s = getStatus(tempDir);
+    expect(s.total).toBe(0);
+    expect(s.merged).toBe(0);
+    expect(s.rejected).toBe(0);
+    expect(s.pending).toBe(0);
+    expect(s.lastScore).toBeNull();
+    expect(s.lastRef).toBeNull();
+    expect(s.trendDirection).toBeNull();
+  });
+
+  it('counts statuses correctly', () => {
+    appendResult(tempDir, makeVerifyResult('#1', 85, true), 'merged', 'first');
+    appendResult(tempDir, makeVerifyResult('#2', 72, true), 'merged', 'second');
+    appendResult(tempDir, makeVerifyResult('#3', 45, false), 'rejected', 'third');
+    appendResult(tempDir, makeVerifyResult('#4', 60, true), 'pending', 'fourth');
+
+    const s = getStatus(tempDir);
+    expect(s.total).toBe(4);
+    expect(s.merged).toBe(2);
+    expect(s.rejected).toBe(1);
+    expect(s.pending).toBe(1);
+  });
+
+  it('reports last score and ref', () => {
+    appendResult(tempDir, makeVerifyResult('#1', 85, true), 'merged', 'first');
+    appendResult(tempDir, makeVerifyResult('#2', 90, true), 'merged', 'second');
+
+    const s = getStatus(tempDir);
+    expect(s.lastScore).toBe(90);
+    expect(s.lastRef).toBe('#2');
+    expect(s.lastStatus).toBe('merged');
+  });
+
+  it('computes baseline from last 5 merged scores', () => {
+    for (let i = 1; i <= 5; i++) {
+      appendResult(tempDir, makeVerifyResult(`#${i}`, 80 + i, true), 'merged', `pr ${i}`);
+    }
+    const s = getStatus(tempDir);
+    // (81+82+83+84+85) / 5 = 83
+    expect(s.baseline).toBe(83);
+  });
+
+  it('detects improving trend', () => {
+    // Old 5 avg = 70, new 5 avg = 85
+    for (let i = 0; i < 5; i++) {
+      appendResult(tempDir, makeVerifyResult(`#old${i}`, 70, true), 'merged', 'old');
+    }
+    for (let i = 0; i < 5; i++) {
+      appendResult(tempDir, makeVerifyResult(`#new${i}`, 85, true), 'merged', 'new');
+    }
+    const s = getStatus(tempDir);
+    expect(s.trendDirection).toBe('improving');
+    expect(s.trendOld).toBe(70);
+    expect(s.trendNew).toBe(85);
+  });
+
+  it('detects declining trend', () => {
+    for (let i = 0; i < 5; i++) {
+      appendResult(tempDir, makeVerifyResult(`#old${i}`, 90, true), 'merged', 'old');
+    }
+    for (let i = 0; i < 5; i++) {
+      appendResult(tempDir, makeVerifyResult(`#new${i}`, 60, false), 'rejected', 'new');
+    }
+    const s = getStatus(tempDir);
+    expect(s.trendDirection).toBe('declining');
+  });
+
+  it('reports recurring issues', () => {
+    appendResult(tempDir, makeVerifyResult('#1', 40, false), 'rejected', 'bad ux 1');
+    appendResult(tempDir, makeVerifyResult('#2', 35, false), 'rejected', 'bad ux 2');
+
+    const s = getStatus(tempDir);
+    expect(s.recurringIssues.length).toBeGreaterThan(0);
+  });
+
+  it('returns no recurring issues for clean history', () => {
+    appendResult(tempDir, makeVerifyResult('#1', 95, true), 'merged', 'good 1');
+    appendResult(tempDir, makeVerifyResult('#2', 90, true), 'merged', 'good 2');
+
+    const s = getStatus(tempDir);
+    expect(s.recurringIssues).toHaveLength(0);
   });
 });
 
