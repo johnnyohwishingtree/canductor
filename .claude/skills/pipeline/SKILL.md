@@ -83,6 +83,17 @@ Read the issue body and implement it. Follow CLAUDE.md rules:
 - Every new module needs tests
 - Dependencies flow: cli -> core. Never the reverse.
 
+### Step 4b: Self-update check
+
+After implementing, check if your changes affect the pipeline itself:
+- **Did you add or change CLI flags?** Update the `canductor verify` invocations in this file (`.claude/skills/pipeline/SKILL.md`) to use them.
+- **Did you add new CLI commands?** Consider if they should be part of the pipeline loop (e.g., a new `canductor lint` command might belong in the verify step).
+- **Did you change CLAUDE.md structure?** Make sure the pipeline skill's references to CLAUDE.md sections still work.
+- **Did you change the config.yaml schema?** Update any hardcoded references in this file.
+- **Did you change the results.tsv format?** Update the results log commit step.
+
+If any updates are needed, make them now — include the skill file changes in your commit. The pipeline improves itself by keeping its own instructions current with the codebase it builds.
+
 ### Step 5: Verify and fix loop
 
 This is the core quality gate. Keep iterating until verification passes or you exhaust all attempts.
