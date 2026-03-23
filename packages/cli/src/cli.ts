@@ -31,6 +31,7 @@ import {
   getBaseline,
   getAgentReviewPrompt,
   parseReviewJson,
+  detectToolchain,
 } from '@canductor/core';
 import type { AgentReviewResult } from '@canductor/core';
 import { writeFileSync, existsSync, mkdirSync } from 'node:fs';
@@ -74,6 +75,8 @@ function cmdInit(): void {
     return;
   }
 
+  const toolchain = detectToolchain(repoRoot);
+
   writeFileSync(configPath, `# canductor verification config
 # Docs: https://canductor.ai/docs/config
 version: 1
@@ -82,13 +85,13 @@ layers:
   tests:
     name: tests
     type: deterministic
-    run: "npm test"
+    run: "${toolchain.testCmd}"
     weight: 1.0
 
   typecheck:
     name: typecheck
     type: deterministic
-    run: "npx tsc --noEmit"
+    run: "${toolchain.typecheckCmd}"
     weight: 1.0
 
   # Uncomment to add visual regression:
@@ -115,6 +118,7 @@ policy:
   block: "any_deterministic_fail"
 `);
 
+  console.log(`Detected toolchain: ${toolchain.packageManager}`);
   console.log('Created .canductor/config.yaml');
   console.log('Edit the config to match your project, then run: canductor verify');
 }

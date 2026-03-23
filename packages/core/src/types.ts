@@ -105,6 +105,14 @@ export interface RuleImprovement {
   confidence: number; // 0-1, based on how many times the pattern was seen
 }
 
+/** Detected project toolchain from package.json and lock files. */
+export interface ProjectToolchain {
+  packageManager: 'pnpm' | 'npm' | 'yarn';
+  testCmd: string;
+  typecheckCmd: string;
+  buildCmd: string | null;
+}
+
 /** Context injected into agent prompts based on results history. */
 export interface QualityContext {
   /** Recent results summary. */
