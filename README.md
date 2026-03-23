@@ -26,17 +26,34 @@ Inspired by [autoresearch](https://github.com/karpathy/autoresearch) — try, me
 
 ## The Self-Building Pipeline
 
-Canductor builds itself using canductor. A GitHub Actions cron runs every 20 minutes:
+Canductor builds itself using canductor. **Claude Code is the orchestration layer** — no external workflow engines, no event buses, no servers.
+
+We evaluated Inngest, Temporal, and OpenClaw before landing here. Claude Code provides everything a pipeline needs natively: cloud sessions for background execution, sub-agents for parallel work, hooks for automation, and skills for reusable workflows. The model IS the orchestrator.
+
+### How it runs
+
+A GitHub Actions cron fires every 20 minutes:
 
 1. **Find work** — queries GitHub Issues for `story,pending` labels
-2. **Dispatch agent** — runs `claude-code-action` on a branch
+2. **Dispatch agent** — runs Claude via `claude-code-action` on a branch
 3. **Verify** — runs `canductor verify` to score the output
 4. **Merge or fix** — creates PR, merges if quality meets baseline
 5. **Close and chain** — marks story complete, next cron picks up the next one
 
-To start work: create a GitHub Issue with the `story` and `pending` labels. The pipeline picks it up within 20 minutes.
+**To start work:** create a GitHub Issue with the `story` and `pending` labels. The pipeline picks it up within 20 minutes.
 
-No external infrastructure. No Inngest, no Vercel, no webhooks. Just GitHub Issues + Actions + the canductor CLI.
+### Why Claude Code, not a workflow engine
+
+| What we need | Claude Code feature |
+|---|---|
+| Background execution | Cloud sessions (`claude.ai/code`) |
+| Parallel work | Sub-agents, Agent Teams |
+| Automation hooks | 21 lifecycle events (PreToolUse, PostToolUse, Stop, etc.) |
+| Retry on failure | Hooks can re-dispatch on Stop |
+| Token optimization | Plan mode (53% cheaper), `.claudeignore`, skills on-demand |
+| State persistence | `.canductor/results.tsv` committed to repo |
+
+No external infrastructure. No databases, no servers, no event buses. GitHub Issues are the task queue. GitHub Actions is the compute. The repo is the database.
 
 ## Quick Start
 
