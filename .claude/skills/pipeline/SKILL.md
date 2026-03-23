@@ -256,3 +256,9 @@ The next pipeline run will pick up the first new story.
 - Don't read files you've already read in this session
 - Use `pnpm typecheck` incrementally after each file
 - Keep implementation focused — one story, one branch, one PR
+
+## Template Maintenance
+
+<!-- canductor:skill-template-version:1 -->
+<!-- Last updated: 2026-03-23 -->
+<!-- Update this skill when: new CLI flags are added, new verification layers exist, or the pipeline loop changes -->
