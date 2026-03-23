@@ -174,6 +174,11 @@ jobs:
               fi
             fi
 
+            # Count fix attempts (number of agent runs for this branch)
+            FIX_ATTEMPTS=$(gh run list --repo "$REPO" --workflow agent.yml \
+              --branch "$BRANCH" --json databaseId --jq 'length' 2>/dev/null || echo "1")
+            MAX_ATTEMPTS=4
+
             # Act on the decision
             if [ "$DECISION" = "auto_merge" ]; then
               echo "Decision: auto_merge — merging PR #$EXISTING_PR"
@@ -185,40 +190,43 @@ jobs:
                   --body "✓ Story complete. [PR #$EXISTING_PR](https://github.com/$REPO/pull/$EXISTING_PR) merged. Score: **$SCORE/100**."
               fi
 
-            elif [ "$DECISION" = "human_review" ]; then
-              echo "Decision: human_review — PR created, waiting for human"
+            elif [ "$FIX_ATTEMPTS" -ge "$MAX_ATTEMPTS" ]; then
+              echo "Decision: $DECISION after $FIX_ATTEMPTS attempts — giving up, needs human"
               gh issue comment "$NUMBER" --repo "$REPO" \
-                --body "Agent finished. [PR #$EXISTING_PR](https://github.com/$REPO/pull/$EXISTING_PR) created. Score: **$SCORE/100** (below baseline).
+                --body "Score **$SCORE/100** after $FIX_ATTEMPTS attempts. Needs human review.
 
-          **Needs human review** — canductor flagged this for manual inspection.
+          [PR #$EXISTING_PR](https://github.com/$REPO/pull/$EXISTING_PR)
 
           \`\`\`
           $SUMMARY
           \`\`\`"
 
-            elif [ "$DECISION" = "block" ]; then
-              echo "Decision: block — dispatching fix agent"
+            else
+              echo "Decision: $DECISION (attempt $FIX_ATTEMPTS/$MAX_ATTEMPTS) — dispatching fix agent"
               gh issue comment "$NUMBER" --repo "$REPO" \
-                --body "Agent finished but verification **blocked** (score: $SCORE/100). [PR #$EXISTING_PR](https://github.com/$REPO/pull/$EXISTING_PR).
+                --body "Score **$SCORE/100** — below threshold. Fix attempt $FIX_ATTEMPTS/$MAX_ATTEMPTS.
 
-          Dispatching fix agent.
+          [PR #$EXISTING_PR](https://github.com/$REPO/pull/$EXISTING_PR) | Dispatching fix agent.
 
           \`\`\`
           $SUMMARY
           \`\`\`"
 
-              # Dispatch agent to fix the errors
+              # Dispatch agent to improve the score
               gh workflow run agent.yml --repo "$REPO" \
                 -f issue_number="$NUMBER" \
                 -f branch="$BRANCH" \
-                -f prompt="Read CLAUDE.md first. The previous implementation for issue #$NUMBER failed canductor verification.
+                -f prompt="Read CLAUDE.md first. The implementation for issue #$NUMBER scored $SCORE/100 on canductor verification. The target is to meet or exceed the baseline.
 
-          FIX THESE ERRORS:
+          VERIFICATION RESULT:
           $SUMMARY
 
-          After fixing:
-          1. Run pnpm typecheck && pnpm test
-          2. git add, commit, push to $BRANCH
+          Improve the code quality to raise the score. Focus on:
+          - Fix any failing tests or typecheck errors (these block merging)
+          - Address issues flagged in the verification summary above
+          - Run pnpm typecheck && pnpm test to confirm fixes
+
+          After fixing: git add, commit, push to $BRANCH
 
           Closes #$NUMBER" || true
             fi
