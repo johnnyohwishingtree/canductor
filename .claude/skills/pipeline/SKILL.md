@@ -94,6 +94,8 @@ After implementing, check if your changes affect the pipeline itself:
 
 If any updates are needed, make them now — include the skill file changes in your commit. The pipeline improves itself by keeping its own instructions current with the codebase it builds.
 
+If you created or modified any skill files (`.claude/skills/**/*.md`), also evaluate them against `.canductor/rubrics/skill-quality.md` before proceeding. Fix any issues the rubric identifies — skills are pipeline code, they need the same quality bar.
+
 ### Step 5: Verify and fix loop
 
 This is the core quality gate. Keep iterating until verification passes or you exhaust all attempts.
