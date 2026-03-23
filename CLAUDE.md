@@ -124,4 +124,7 @@ Current baseline quality score: 0/100
 ### Recent verification results:
 - pipeline-migration: score=77 pending (Verified pipeline-migration)
 - 18: score=98 pending (Verified 18)
+- 21: score=98 pending (Verified 21)
+- 22: score=98 pending (Verified 22)
+- 23: score=98 pending (Verified 23)
 <!-- canductor:end -->
