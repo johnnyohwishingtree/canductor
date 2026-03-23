@@ -22,7 +22,6 @@ layers:
     rubric: ".canductor/rubrics/canductor-code-quality.md"
     context:
       - "packages/core/src/"
-      - "packages/pipeline/src/"
       - "packages/cli/src/"
     weight: 0.6
 

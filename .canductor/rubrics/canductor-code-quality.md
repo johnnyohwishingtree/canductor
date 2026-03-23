@@ -4,17 +4,17 @@ Evaluate the code changes against these criteria. Score each 0-100 and flag issu
 
 ## Architecture (weight: 30%)
 - Functions are small and single-purpose
-- Dependencies flow in one direction (pipeline → core, not the reverse)
+- Dependencies flow in one direction (cli → core, not the reverse)
 - No circular imports between packages
 - Types are precise (no `any`, no loose unions)
 - Errors are handled explicitly, not swallowed
 
-## Inngest Patterns (weight: 25%)
-- Each step is idempotent (safe to retry)
-- Steps are named descriptively (for observability)
-- `waitForEvent` has reasonable timeouts
-- Side effects (GitHub API calls, LLM calls) happen inside steps, not outside
-- Concurrency is considered (no race conditions between parallel runs)
+## Verification Engine (weight: 25%)
+- Verification layers are composable and independent
+- Policy expressions are correctly parsed and evaluated
+- Results log is append-only and consistent (TSV format)
+- Feedback loop correctly detects recurring patterns
+- Agent-review gracefully handles missing API keys
 
 ## Testing (weight: 25%)
 - New functions have corresponding tests
