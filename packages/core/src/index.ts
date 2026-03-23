@@ -11,6 +11,7 @@ export { runAgentReview, buildReviewPrompt, parseReviewJson } from './agent-revi
 export { injectContext, suggestRuleImprovements } from './feedback.js';
 export { detectToolchain, scaffoldRubric, runFirstVerification } from './scaffold.js';
 export { parseSkillFrontmatter, validateSkillFrontmatter, discoverSkills, lintSkills } from './skill-lint.js';
+export { runGuardrailLayer } from './guardrail.js';
 export type {
   CanductorConfig,
   LayerConfig,
@@ -26,4 +27,6 @@ export type {
   SkillFrontmatter,
   SkillLintResult,
   StallDetection,
+  GuardrailPattern,
+  GuardrailViolation,
 } from './types.js';

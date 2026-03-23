@@ -9,7 +9,7 @@
 /** A single verification layer definition. */
 export interface LayerConfig {
   name: string;
-  type: 'deterministic' | 'screenshot-diff' | 'agent-review';
+  type: 'deterministic' | 'screenshot-diff' | 'agent-review' | 'guardrail';
   /** Shell command to run (deterministic layers). */
   run?: string;
   /** Command to capture screenshots (screenshot-diff layers). */
@@ -24,8 +24,29 @@ export interface LayerConfig {
   rubric?: string;
   /** Paths to include as context for agent-review. */
   context?: string[];
+  /** File globs to scan (guardrail layers). */
+  include?: string[];
+  /** File globs to exclude (guardrail layers). */
+  exclude?: string[];
+  /** Forbidden patterns to match (guardrail layers). */
+  patterns?: GuardrailPattern[];
   /** Weight for composite scoring (0-1). */
   weight: number;
+}
+
+/** A pattern to match in guardrail scanning. */
+export interface GuardrailPattern {
+  pattern: string;
+  message: string;
+}
+
+/** A single guardrail violation found in a file. */
+export interface GuardrailViolation {
+  file: string;
+  line: number;
+  pattern: string;
+  message: string;
+  match: string;
 }
 
 /** Policy for auto-merge / human-review / block decisions. */
