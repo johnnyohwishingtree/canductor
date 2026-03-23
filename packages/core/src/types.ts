@@ -113,6 +113,22 @@ export interface ProjectToolchain {
   buildCmd: string | null;
 }
 
+/** Parsed YAML frontmatter from a SKILL.md file. */
+export interface SkillFrontmatter {
+  name?: string;
+  description?: string;
+  'argument-hint'?: string;
+  tags?: string[];
+}
+
+/** Result of linting a single SKILL.md file. */
+export interface SkillLintResult {
+  path: string;
+  frontmatter: SkillFrontmatter | null;
+  errors: string[];
+  valid: boolean;
+}
+
 /** Context injected into agent prompts based on results history. */
 export interface QualityContext {
   /** Recent results summary. */
