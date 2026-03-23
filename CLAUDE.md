@@ -121,4 +121,7 @@ All instructions live in the repo (versioned, improvable by the pipeline itself)
 
 Current baseline quality score: 0/100
 
+### Recent verification results:
+- pipeline-migration: score=77 pending (Verified pipeline-migration)
+- 18: score=98 pending (Verified 18)
 <!-- canductor:end -->
