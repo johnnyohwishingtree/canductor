@@ -187,13 +187,22 @@ If after 6 attempts the decision is still not `auto_merge`:
      --title "WIP: $TITLE" \
      --body "Failed canductor verification after 6 attempts. Needs human review. Ref: #$NUMBER"
    ```
-2. Reset the issue so a future run can retry:
+2. Update the result status to rejected:
+   ```bash
+   node packages/cli/dist/cli.js result-update $NUMBER rejected
+   ```
+3. Reset the issue so a future run can retry:
    ```bash
    gh issue edit $NUMBER --repo johnnyohwishingtree/canductor --remove-label "in-progress" --add-label "pending"
    gh issue comment $NUMBER --repo johnnyohwishingtree/canductor \
      --body "Pipeline failed to meet quality threshold after 6 attempts. WIP PR created for visibility. Resetting to pending."
    ```
-3. **Stop.** Do not proceed to Step 6 or Step 7.
+4. Commit the updated results log:
+   ```bash
+   git add .canductor/results.tsv
+   git diff --cached --quiet || git commit -m "chore: log rejected result for #$NUMBER" && git push -u origin canductor/issue-$NUMBER
+   ```
+5. **Stop.** Do not proceed to Step 6 or Step 7.
 
 ### Step 6: Push, PR, merge, close (only if Step 5 passed)
 
@@ -224,9 +233,10 @@ gh issue edit $NUMBER --repo johnnyohwishingtree/canductor --remove-label "in-pr
 gh issue close $NUMBER --repo johnnyohwishingtree/canductor
 ```
 
-Commit the results log:
+Update the result status to merged and commit the results log:
 ```bash
 git checkout master && git pull origin master
+node packages/cli/dist/cli.js result-update $NUMBER merged
 git add .canductor/results.tsv
 git diff --cached --quiet || git commit -m "chore: log canductor result for #$NUMBER" && git push origin master
 ```
