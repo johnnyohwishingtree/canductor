@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.turbo/
+*.tsbuildinfo
+pnpm-lock.yaml
+.canductor/baselines/
+.canductor/session-log.tsv
+.vercel/
+apps/api/.vercel/
+coverage/

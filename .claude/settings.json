@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "command": ".claude/hooks/post-edit-typecheck.sh"
+      }
+    ],
+    "Stop": [
+      {
+        "command": ".claude/hooks/stop-log-tokens.sh"
+      }
+    ]
+  }
+}
