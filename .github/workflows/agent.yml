@@ -28,6 +28,20 @@ jobs:
           ref: ${{ inputs.branch }}
           fetch-depth: 0
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Inject quality context into CLAUDE.md
+        run: |
+          npm install -g pnpm && pnpm install && pnpm build
+          node packages/cli/dist/cli.js inject CLAUDE.md
+          git config user.name "canductor[bot]"
+          git config user.email "canductor[bot]@users.noreply.github.com"
+          git add CLAUDE.md
+          git diff --cached --quiet || git commit -m "chore: inject canductor quality context [skip ci]"
+          git push origin "${{ inputs.branch }}" || true
+
       - name: Run Claude
         uses: anthropics/claude-code-action@v1
         with:

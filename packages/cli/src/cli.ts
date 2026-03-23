@@ -101,15 +101,31 @@ policy:
 
 async function cmdVerify(): Promise<void> {
   const ref = args[1] ?? 'HEAD';
+  const jsonMode = args.includes('--json');
   const config = loadConfig(repoRoot);
   const result = await verify(ref, config);
 
-  console.log(result.summary);
-  console.log(`\nComposite score: ${result.composite_score}/100`);
-  console.log(`Decision: ${result.decision}`);
+  if (jsonMode) {
+    console.log(JSON.stringify({
+      score: result.composite_score,
+      decision: result.decision,
+      summary: result.summary,
+      passed: result.decision !== 'block',
+    }));
+  } else {
+    console.log(result.summary);
+    console.log(`\nComposite score: ${result.composite_score}/100`);
+    console.log(`Decision: ${result.decision}`);
+  }
 
   appendResult(repoRoot, result, 'pending', `Verified ${ref}`);
-  console.log('\nResult logged to .canductor/results.tsv');
+  if (!jsonMode) {
+    console.log('\nResult logged to .canductor/results.tsv');
+  }
+
+  if (result.decision === 'block') {
+    process.exit(1);
+  }
 }
 
 async function cmdScore(): Promise<void> {

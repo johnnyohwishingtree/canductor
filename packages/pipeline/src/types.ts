@@ -28,4 +28,14 @@ export type CanductorEvents = {
   'canductor/verify.requested': {
     data: { branch: string; repo: string; issueNumber?: number };
   };
+  'canductor/verify.completed': {
+    data: {
+      branch: string;
+      repo: string;
+      issueNumber?: number;
+      score: number;
+      decision: 'auto_merge' | 'human_review' | 'block';
+      passed: boolean;
+    };
+  };
 };
