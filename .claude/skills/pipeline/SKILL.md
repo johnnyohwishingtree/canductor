@@ -75,7 +75,11 @@ gh issue edit $NUMBER --repo johnnyohwishingtree/canductor --remove-label "pendi
 git fetch origin master && git checkout -b canductor/issue-$NUMBER origin/master
 ```
 
-Read the issue body and implement it. Follow CLAUDE.md rules:
+Read the issue body and implement it. Follow CLAUDE.md rules and the templates:
+- **New source modules** → follow `.canductor/templates/module.md` (structure, imports, JSDoc, barrel export)
+- **New test files** → follow `.canductor/templates/test.md` (describe blocks, factories, happy + error paths)
+- **New rubrics** → follow `.canductor/templates/rubric.md` (weighted categories, observable criteria)
+- **New skills** → follow `.canductor/templates/skill.md` (frontmatter, numbered steps, discard path)
 - Run `pnpm typecheck` after every file change
 - Run `pnpm test` before committing
 - Never use `any` types — fix the root cause
@@ -114,11 +118,19 @@ Then run the self-review. First, get the review prompt:
 node packages/cli/dist/cli.js verify --self-review
 ```
 
-This outputs the rubric and code context for each agent-review layer. Read the output carefully and evaluate the code against the rubric criteria:
+This outputs the rubric and code context for each agent-review layer. Read the output carefully and evaluate the code against:
+
+**Code quality** (`.canductor/rubrics/canductor-code-quality.md`):
 - **Architecture (30%)**: small functions, correct dependency direction, no `any`, explicit error handling
 - **Verification Engine (25%)**: layers composable and independent, results log consistent
 - **Testing (25%)**: new functions have tests, happy path + at least one error path
 - **Code Style (20%)**: strict mode passes, no unused imports, barrel exports, camelCase/PascalCase
+
+**Test quality** (`.canductor/rubrics/test-quality.md`):
+- **Coverage (35%)**: every export has a describe, happy + error paths tested
+- **Assertions (25%)**: specific values, not just existence checks
+- **Isolation (20%)**: temp dirs, no order dependency, minimal mocks
+- **Clarity (20%)**: behavior-describing names, factories, one concern per test
 
 Produce a JSON result:
 ```json
