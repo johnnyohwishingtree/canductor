@@ -7,7 +7,7 @@
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
-import type { ResultRow, VerifyResult, QualityContext, CanductorConfig } from './types.js';
+import type { ResultRow, VerifyResult, QualityContext, CanductorConfig, StallDetection } from './types.js';
 
 const RESULTS_PATH = '.canductor/results.tsv';
 const HEADER = 'ref\ttimestamp\tcomposite_score\tdecision\tlayer_scores\tstatus\tdescription';
@@ -166,12 +166,63 @@ export function analyzeResults(repoRoot: string): QualityContext {
     );
   }
 
+  const stalls = detectStalls(results);
+
+  if (stalls.length > 0) {
+    for (const stall of stalls) {
+      recurringIssues.push(
+        `Ref "${stall.ref}" stalled: ${stall.attempts} attempts with scores ${stall.scoreRange.min}-${stall.scoreRange.max}`
+      );
+    }
+  }
+
   return {
     recent_results: recent,
     recurring_issues: recurringIssues,
     suggested_rules: suggestedRules,
     baseline_score: baselineScore,
+    stalls,
   };
+}
+
+/**
+ * Detect refs that are stuck in a verify loop with no score improvement.
+ *
+ * A stall is detected when the same ref appears 3+ times in the results
+ * log with all scores within a ±2 point range.
+ *
+ * @param results - All result rows to analyze
+ * @returns Array of detected stalls
+ */
+export function detectStalls(results: ResultRow[]): StallDetection[] {
+  const byRef = new Map<string, number[]>();
+
+  for (const row of results) {
+    const scores = byRef.get(row.ref) ?? [];
+    scores.push(row.composite_score);
+    byRef.set(row.ref, scores);
+  }
+
+  const stalls: StallDetection[] = [];
+
+  for (const [ref, scores] of byRef) {
+    if (scores.length < 3) continue;
+
+    const min = Math.min(...scores);
+    const max = Math.max(...scores);
+
+    if (max - min <= 2) {
+      stalls.push({
+        ref,
+        attempts: scores.length,
+        scores,
+        scoreRange: { min, max },
+        suggestion: `Ref "${ref}" has been attempted ${scores.length} times with no meaningful improvement (scores: ${min}-${max}). Try a fundamentally different approach.`,
+      });
+    }
+  }
+
+  return stalls;
 }
 
 /** A single layer diff entry. */
@@ -275,6 +326,8 @@ export interface PipelineStatus {
   trendNew: number | null;
   trendDirection: 'improving' | 'declining' | 'stable' | null;
   recurringIssues: string[];
+  /** Detected stalls — refs with repeated attempts and no score improvement. */
+  stalls: StallDetection[];
 }
 
 /**
@@ -289,6 +342,7 @@ export function getStatus(repoRoot: string): PipelineStatus {
       baseline: 0, lastScore: null, lastRef: null, lastStatus: null,
       trendOld: null, trendNew: null, trendDirection: null,
       recurringIssues: [],
+      stalls: [],
     };
   }
 
@@ -333,6 +387,7 @@ export function getStatus(repoRoot: string): PipelineStatus {
     trendNew,
     trendDirection,
     recurringIssues: ctx.recurring_issues,
+    stalls: ctx.stalls,
   };
 }
 
@@ -457,6 +512,14 @@ export function generatePromptContext(repoRoot: string): string {
     lines.push('### Quality notes:');
     for (const rule of ctx.suggested_rules) {
       lines.push(`- ${rule}`);
+    }
+    lines.push('');
+  }
+
+  if (ctx.stalls.length > 0) {
+    lines.push('### Stalled refs:');
+    for (const stall of ctx.stalls) {
+      lines.push(`- ${stall.suggestion}`);
     }
     lines.push('');
   }

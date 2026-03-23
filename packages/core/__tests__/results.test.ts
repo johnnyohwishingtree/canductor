@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { appendResult, readResults, updateResultStatus, analyzeResults, generatePromptContext, diffResults, getStatus, getTrend, computeAutoBaseline, getBaseline } from '../src/results.js';
-import type { VerifyResult, CanductorConfig } from '../src/types.js';
+import { appendResult, readResults, updateResultStatus, analyzeResults, detectStalls, generatePromptContext, diffResults, getStatus, getTrend, computeAutoBaseline, getBaseline } from '../src/results.js';
+import type { VerifyResult, CanductorConfig, ResultRow } from '../src/types.js';
 
 let tempDir: string;
 
@@ -414,5 +414,91 @@ describe('generatePromptContext', () => {
   it('returns minimal context when no history', () => {
     const context = generatePromptContext(tempDir);
     expect(context).toContain('baseline quality score: 0');
+  });
+
+  it('includes stalled refs section when stalls detected', () => {
+    // Create 3 results for the same ref with similar scores
+    for (let i = 0; i < 3; i++) {
+      appendResult(tempDir, makeVerifyResult('stuck-42', 85, true), 'pending', `Attempt ${i + 1}`);
+    }
+
+    const context = generatePromptContext(tempDir);
+    expect(context).toContain('Stalled refs');
+    expect(context).toContain('stuck-42');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// detectStalls
+// ---------------------------------------------------------------------------
+describe('detectStalls', () => {
+  function makeRow(overrides: Partial<ResultRow>): ResultRow {
+    return {
+      ref: '1',
+      timestamp: new Date().toISOString(),
+      composite_score: 90,
+      decision: 'auto_merge',
+      layer_scores: 'tests:100',
+      status: 'pending',
+      description: 'Test',
+      ...overrides,
+    };
+  }
+
+  it('detects stall when same ref appears 3+ times within ±2 score', () => {
+    const results: ResultRow[] = [
+      makeRow({ ref: '42', composite_score: 85 }),
+      makeRow({ ref: '42', composite_score: 86 }),
+      makeRow({ ref: '42', composite_score: 85 }),
+    ];
+
+    const stalls = detectStalls(results);
+
+    expect(stalls).toHaveLength(1);
+    expect(stalls[0].ref).toBe('42');
+    expect(stalls[0].attempts).toBe(3);
+    expect(stalls[0].scoreRange.min).toBe(85);
+    expect(stalls[0].scoreRange.max).toBe(86);
+    expect(stalls[0].suggestion).toContain('fundamentally different approach');
+  });
+
+  it('does not flag refs with fewer than 3 attempts', () => {
+    const results: ResultRow[] = [
+      makeRow({ ref: '42', composite_score: 85 }),
+      makeRow({ ref: '42', composite_score: 85 }),
+    ];
+
+    const stalls = detectStalls(results);
+    expect(stalls).toEqual([]);
+  });
+
+  it('does not flag refs with improving scores', () => {
+    const results: ResultRow[] = [
+      makeRow({ ref: '42', composite_score: 80 }),
+      makeRow({ ref: '42', composite_score: 85 }),
+      makeRow({ ref: '42', composite_score: 90 }),
+    ];
+
+    const stalls = detectStalls(results);
+    expect(stalls).toEqual([]);
+  });
+
+  it('returns empty array for no results', () => {
+    const stalls = detectStalls([]);
+    expect(stalls).toEqual([]);
+  });
+
+  it('detects multiple stalled refs', () => {
+    const results: ResultRow[] = [
+      makeRow({ ref: 'a', composite_score: 70 }),
+      makeRow({ ref: 'a', composite_score: 71 }),
+      makeRow({ ref: 'a', composite_score: 70 }),
+      makeRow({ ref: 'b', composite_score: 90 }),
+      makeRow({ ref: 'b', composite_score: 91 }),
+      makeRow({ ref: 'b', composite_score: 90 }),
+    ];
+
+    const stalls = detectStalls(results);
+    expect(stalls).toHaveLength(2);
   });
 });
