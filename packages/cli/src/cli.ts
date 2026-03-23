@@ -20,6 +20,7 @@ import {
   verify,
   appendResult,
   readResults,
+  updateResultStatus,
   generatePromptContext,
   injectContext,
   suggestRuleImprovements,
@@ -54,6 +55,7 @@ Usage:
   canductor baseline                         Show current quality baseline
   canductor baseline --set N                 Set baseline override to N
   canductor baseline --auto                  Set baseline from last 5 merged scores
+  canductor result-update <ref> <status>     Update result status (merged|rejected|pending)
   canductor context                          Generate quality context for agent prompts
   canductor inject <file>                    Inject quality context into a file (e.g. CLAUDE.md)
   canductor suggest                          Suggest rule improvements based on history
@@ -366,6 +368,32 @@ function cmdBaseline(): void {
   console.log(`Current baseline: ${baseline}/100 (${source})`);
 }
 
+function cmdResultUpdate(): void {
+  const ref = args[1];
+  const status = args[2];
+
+  if (!ref || !status) {
+    console.error('Usage: canductor result-update <ref> <status>');
+    console.error('Status must be one of: merged, rejected, pending');
+    process.exit(1);
+  }
+
+  const validStatuses = ['merged', 'rejected', 'pending'] as const;
+  if (!validStatuses.includes(status as typeof validStatuses[number])) {
+    console.error(`Invalid status: ${status}`);
+    console.error('Status must be one of: merged, rejected, pending');
+    process.exit(1);
+  }
+
+  const updated = updateResultStatus(repoRoot, ref, status as 'merged' | 'rejected' | 'pending');
+  if (updated) {
+    console.log(`Updated result for ref "${ref}" to status "${status}"`);
+  } else {
+    console.error(`Ref not found in results log: ${ref}`);
+    process.exit(1);
+  }
+}
+
 function cmdContext(): void {
   const context = generatePromptContext(repoRoot);
   console.log(context);
@@ -427,6 +455,9 @@ async function main(): Promise<void> {
       break;
     case 'baseline':
       cmdBaseline();
+      break;
+    case 'result-update':
+      cmdResultUpdate();
       break;
     case 'context':
       cmdContext();
