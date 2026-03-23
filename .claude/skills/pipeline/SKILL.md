@@ -114,6 +114,7 @@ After implementing, check if your changes affect the pipeline itself:
 - **Did you change CLAUDE.md structure?** Make sure the pipeline skill's references to CLAUDE.md sections still work.
 - **Did you change the config.yaml schema?** Update any hardcoded references in this file.
 - **Did you change the results.tsv format?** Update the results log commit step.
+- **Did you add/remove/rename any `.claude/` files?** Update `.claude/index.md` to reflect the change.
 
 If any updates are needed, make them now — include the skill file changes in your commit. The pipeline improves itself by keeping its own instructions current with the codebase it builds.
 
@@ -249,7 +250,7 @@ Analyze the project to identify the highest-impact improvement:
    ```
 4. Look for: missing features mentioned in CLAUDE.md, test coverage gaps, CLI commands listed but not implemented, error handling improvements
 
-Read the templates before creating issues:
+Read `.claude/index.md` to see available templates and patterns, then read the specific ones you need:
 - `.claude/templates/epic.md` — structure for epic bodies
 - `.claude/templates/story.md` — structure for story bodies
 

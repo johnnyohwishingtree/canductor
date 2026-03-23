@@ -1,0 +1,59 @@
+# .claude/ System Index
+
+Read this file first. It maps every artifact in the pipeline system. Only read individual files when you need their full content.
+
+## Rules (auto-loaded every session)
+
+| File | Constraint |
+|------|-----------|
+| `rules/tdd.md` | Write a failing test before fixing any bug |
+| `rules/commit-gate.md` | Run build + typecheck + tests before every commit |
+| `rules/file-conventions.md` | Project structure, `.claude/` vs `.canductor/` layout, naming |
+| `rules/update-index.md` | Update this index when `.claude/` files change |
+
+## Templates + Rubric Pairs
+
+| Template | Rubric | What it structures |
+|----------|--------|--------------------|
+| `templates/module.md` | `rubrics/canductor-code-quality.md` | TypeScript source modules |
+| `templates/test.md` | `rubrics/test-quality.md` | Test files |
+| `templates/skill.md` | `rubrics/skill-quality.md` | Skill definitions |
+| `templates/epic.md` | — | Epic issues |
+| `templates/story.md` | — | Story issues |
+| `templates/rubric.md` | Self | Rubric files |
+
+## Patterns
+
+| Pattern | Trigger | Templates Used |
+|---------|---------|----------------|
+| `patterns/new-layer.md` | Adding a verification layer type | module, test |
+| `patterns/new-cli-command.md` | Adding a CLI subcommand | module, test |
+| `patterns/new-rubric.md` | Adding a quality dimension | rubric |
+| `patterns/extend-results.md` | Adding fields to the results log | module, test |
+| `patterns/new-core-module.md` | Adding a new domain module | module, test |
+
+## Skills
+
+| Skill | Purpose | Invocation |
+|-------|---------|------------|
+| `skills/pipeline/SKILL.md` | Autonomous story loop — merge, implement, verify, push, plan | `/pipeline` |
+| `skills/canductor-verify/SKILL.md` | Run quality verification on the current branch | `/canductor-verify` |
+
+## Dependency Graph
+
+```
+Story body references → Patterns → Templates
+                                        ↓
+Rules (always on)              Rubrics evaluate output
+```
+
+Stories list which patterns and templates to follow. Patterns reference templates for individual file structure. Rubrics evaluate the result. Rules apply to everything.
+
+## Runtime Data (not in .claude/)
+
+| File | Purpose |
+|------|---------|
+| `.canductor/config.yaml` | Verification layer definitions + policy |
+| `.canductor/results.tsv` | Verification history log |
+
+<!-- pipeline:index-version:1 -->

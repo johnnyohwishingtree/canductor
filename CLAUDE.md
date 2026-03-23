@@ -102,12 +102,12 @@ All instructions live in the repo (versioned, improvable by the pipeline itself)
 
 ## Rules
 
-- Run `pnpm typecheck` after every file change
-- Run `pnpm test` before committing
-- Never use `any` types — fix the root cause
-- Keep functions small and single-purpose
-- Every new module needs tests
-- Dependencies flow: cli -> core. Never the reverse.
+Rules in `.claude/rules/` are auto-loaded into every Claude session. See `.claude/index.md` for the full system map (rules, templates, patterns, rubrics, skills).
+
+- `tdd.md` — Write a failing test before fixing any bug
+- `commit-gate.md` — Run build + typecheck + tests before every commit
+- `file-conventions.md` — Project structure, `.claude/` vs `.canductor/` layout, naming
+- `update-index.md` — Update `.claude/index.md` when adding/removing `.claude/` files
 
 ## Architecture Decisions
 
