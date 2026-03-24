@@ -936,6 +936,60 @@ describe('canductor insights', () => {
   });
 });
 
+describe('canductor health', () => {
+  let healthDir: string;
+
+  beforeEach(() => {
+    healthDir = join(TEST_DIR, `health-${Date.now()}`);
+    mkdirSync(healthDir, { recursive: true });
+    setupConfig(healthDir);
+  });
+
+  afterEach(() => {
+    rmSync(healthDir, { recursive: true, force: true });
+  });
+
+  it('shows unified health view with section headers', () => {
+    runCli('verify health-test', healthDir);
+
+    const { stdout, exitCode } = runCli('health', healthDir);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('Pipeline');
+    expect(stdout).toContain('Results');
+    expect(stdout).toContain('Tasks');
+    expect(stdout).toContain('Config');
+    expect(stdout).toContain('Branches');
+    expect(stdout).toContain('Findings');
+  });
+
+  it('outputs valid JSON with --json flag', () => {
+    runCli('verify health-json', healthDir);
+
+    const { stdout, exitCode } = runCli('health --json', healthDir);
+    expect(exitCode).toBe(0);
+    const parsed = JSON.parse(stdout.trim());
+    expect(parsed).toHaveProperty('status');
+    expect(parsed).toHaveProperty('taskPerformance');
+    expect(parsed).toHaveProperty('configValidation');
+    expect(parsed).toHaveProperty('staleBranches');
+    expect(parsed).toHaveProperty('findings');
+  });
+
+  it('shows healthy message when no issues', () => {
+    runCli('verify health-ok', healthDir);
+
+    const { stdout, exitCode } = runCli('health', healthDir);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('Pipeline healthy');
+  });
+
+  it('shows no results message when repo has no data', () => {
+    const { stdout, exitCode } = runCli('health', healthDir);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('No results yet');
+  });
+});
+
 // Cleanup top-level test dir
 afterEach(() => {
   // Individual test suites clean their own dirs

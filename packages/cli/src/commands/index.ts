@@ -6,6 +6,7 @@ import { cmdVerify, cmdScore, cmdLayerTest } from './verify.js';
 import {
   cmdStatus, cmdTrend, cmdDiff, cmdBaseline,
   cmdHistory, cmdInsights, cmdTasks, cmdReport,
+  cmdHealth,
 } from './analytics.js';
 import {
   cmdInit, cmdInject, cmdSuggest, cmdContext,
@@ -42,12 +43,13 @@ export const commands = new Map<string, CommandFn>([
   ['clean', cmdClean],
   ['skill-lint', cmdSkillLint],
   ['layers', cmdLayers],
+  ['health', cmdHealth],
 ]);
 
 export {
   cmdVerify, cmdScore, cmdLayerTest,
   cmdStatus, cmdTrend, cmdDiff, cmdBaseline,
-  cmdHistory, cmdInsights, cmdTasks, cmdReport,
+  cmdHistory, cmdInsights, cmdTasks, cmdReport, cmdHealth,
   cmdInit, cmdInject, cmdSuggest, cmdContext,
   cmdResultUpdate, cmdConfigCheck, cmdClean,
   cmdSkillLint, cmdLayers,

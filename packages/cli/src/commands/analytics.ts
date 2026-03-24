@@ -14,6 +14,7 @@ import {
   generateReport,
   generateInsights,
   analyzeTaskTypes,
+  runHealthCheck,
 } from '@canductor/core';
 
 /**
@@ -369,5 +370,100 @@ export function cmdReport(args: string[], repoRoot: string): void {
     console.log(JSON.stringify(report, null, 2));
   } else {
     console.log(report.markdown);
+  }
+}
+
+/**
+ * Show unified pipeline health view.
+ *
+ * @param args - CLI arguments
+ * @param repoRoot - Repository root path
+ */
+export function cmdHealth(args: string[], repoRoot: string): void {
+  const jsonMode = args.includes('--json');
+  const report = runHealthCheck(repoRoot);
+
+  if (jsonMode) {
+    console.log(JSON.stringify(report, null, 2));
+    return;
+  }
+
+  const issueCount =
+    report.configValidation.errors.length +
+    report.staleBranches.length +
+    report.findings.length;
+
+  if (issueCount === 0) {
+    console.log('Pipeline healthy');
+  } else {
+    const label = issueCount === 1 ? 'issue' : 'issues';
+    console.log(`Pipeline has ${issueCount} ${label}`);
+  }
+  console.log('');
+
+  // Results summary
+  console.log('Results');
+  console.log('-------');
+  const s = report.status;
+  if (s.total === 0) {
+    console.log('  No results yet');
+  } else {
+    console.log(`  Total: ${s.total} (${s.merged} merged, ${s.rejected} rejected, ${s.pending} pending)`);
+    console.log(`  Baseline: ${s.baseline}/100`);
+    if (s.lastScore !== null) {
+      console.log(`  Last: ${s.lastScore}/100 (${s.lastRef}, ${s.lastStatus})`);
+    }
+    if (s.trendDirection !== null && s.trendOld !== null && s.trendNew !== null) {
+      const arrow = s.trendDirection === 'improving' ? '↑' : s.trendDirection === 'declining' ? '↓' : '→';
+      console.log(`  Trend: ${arrow} ${s.trendDirection} (${s.trendOld} → ${s.trendNew})`);
+    }
+  }
+  console.log('');
+
+  // Task performance
+  console.log('Tasks');
+  console.log('-----');
+  if (report.taskPerformance.length === 0) {
+    console.log('  No task data');
+  } else {
+    for (const t of report.taskPerformance) {
+      const label = t.converged ? 'converged' : 'needs-work';
+      console.log(`  ${t.task_type}: avg ${t.avg_cycles} cycles, ${t.total_uses} uses — ${label}`);
+    }
+  }
+  console.log('');
+
+  // Config
+  console.log('Config');
+  console.log('------');
+  if (report.configValidation.valid) {
+    console.log('  Valid');
+  } else {
+    console.log(`  Invalid (${report.configValidation.errors.length} errors)`);
+    for (const e of report.configValidation.errors) {
+      console.log(`    - ${e.message}`);
+    }
+  }
+  if (report.configValidation.warnings.length > 0) {
+    console.log(`  ${report.configValidation.warnings.length} warning(s)`);
+  }
+  console.log('');
+
+  // Stale branches
+  console.log('Branches');
+  console.log('--------');
+  console.log(`  Stale: ${report.staleBranches.length}`);
+  console.log('');
+
+  // Findings
+  console.log('Findings');
+  console.log('--------');
+  if (report.findings.length === 0) {
+    console.log('  No audit findings');
+  } else {
+    console.log(`  ${report.findings.length} finding(s)`);
+    for (const f of report.findings) {
+      console.log(`    [${f.category}] ${f.finding}`);
+    }
   }
 }
