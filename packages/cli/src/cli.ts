@@ -35,6 +35,7 @@ import {
   scaffoldRubric,
   runFirstVerification,
   lintSkills,
+  generateReport,
 } from '@canductor/core';
 import type { AgentReviewResult } from '@canductor/core';
 import { writeFileSync, existsSync, mkdirSync } from 'node:fs';
@@ -64,6 +65,7 @@ Usage:
   canductor inject <file>                    Inject quality context into a file (e.g. CLAUDE.md)
   canductor suggest                          Suggest rule improvements based on history
   canductor init                             Create starter config
+  canductor report [ref] [--json]             Generate markdown quality summary
   canductor skill-lint                       Validate SKILL.md frontmatter
   canductor help                             Show this message
 `);
@@ -489,6 +491,19 @@ function cmdInject(): void {
   }
 }
 
+function cmdReport(): void {
+  const jsonFlag = args.includes('--json');
+  const ref = args.slice(1).find(a => !a.startsWith('--'));
+
+  const report = generateReport(repoRoot, ref);
+
+  if (jsonFlag) {
+    console.log(JSON.stringify(report, null, 2));
+  } else {
+    console.log(report.markdown);
+  }
+}
+
 function cmdSuggest(): void {
   const improvements = suggestRuleImprovements(repoRoot);
 
@@ -567,6 +582,9 @@ async function main(): Promise<void> {
       break;
     case 'init':
       await cmdInit();
+      break;
+    case 'report':
+      cmdReport();
       break;
     case 'skill-lint':
       cmdSkillLint();

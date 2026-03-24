@@ -14,6 +14,8 @@ export type { Learning } from './learnings.js';
 export { detectToolchain, scaffoldRubric, runFirstVerification } from './scaffold.js';
 export { parseSkillFrontmatter, validateSkillFrontmatter, discoverSkills, lintSkills } from './skill-lint.js';
 export { runGuardrailLayer } from './guardrail.js';
+export { generateReport } from './report.js';
+export type { ReportData } from './report.js';
 export type {
   CanductorConfig,
   LayerConfig,
