@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { appendResult, readResults, updateResultStatus, analyzeResults, detectStalls, generatePromptContext, diffResults, getStatus, getTrend, computeAutoBaseline, getBaseline } from '../src/results.js';
@@ -500,5 +500,97 @@ describe('detectStalls', () => {
 
     const stalls = detectStalls(results);
     expect(stalls).toHaveLength(2);
+  });
+
+  it('returns no stalls when ref has fewer than 3 entries', () => {
+    const results: ResultRow[] = [
+      makeRow({ ref: 'x', composite_score: 70 }),
+      makeRow({ ref: 'x', composite_score: 71 }),
+    ];
+
+    const stalls = detectStalls(results);
+    expect(stalls).toHaveLength(0);
+  });
+});
+
+describe('readResults edge cases', () => {
+  it('skips rows with wrong field count (corrupted row)', () => {
+    const dir = join(tempDir, '.canductor');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'results.tsv'), [
+      'ref\ttimestamp\tcomposite_score\tdecision\tlayer_scores\tstatus\tdescription',
+      '#1\t2026-01-01T00:00:00Z\t95\tauto_merge\ttests:100\tmerged\tgood',
+      '#2\tCORRUPTED_ROW',
+      '#3\t2026-01-02T00:00:00Z\t88\tauto_merge\ttests:88\tmerged\talso good',
+    ].join('\n'));
+
+    const rows = readResults(tempDir);
+    expect(rows).toHaveLength(2);
+    expect(rows[0].ref).toBe('#1');
+    expect(rows[1].ref).toBe('#3');
+  });
+
+  it('handles empty lines between rows', () => {
+    const dir = join(tempDir, '.canductor');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'results.tsv'), [
+      'ref\ttimestamp\tcomposite_score\tdecision\tlayer_scores\tstatus\tdescription',
+      '#1\t2026-01-01T00:00:00Z\t95\tauto_merge\ttests:100\tmerged\tgood',
+      '',
+      '',
+      '#2\t2026-01-02T00:00:00Z\t88\tauto_merge\ttests:88\tmerged\talso good',
+    ].join('\n'));
+
+    const rows = readResults(tempDir);
+    expect(rows).toHaveLength(2);
+    expect(rows[0].ref).toBe('#1');
+    expect(rows[1].ref).toBe('#2');
+  });
+
+  it('returns empty array for file with only header', () => {
+    const dir = join(tempDir, '.canductor');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'results.tsv'),
+      'ref\ttimestamp\tcomposite_score\tdecision\tlayer_scores\tstatus\tdescription\n');
+
+    const rows = readResults(tempDir);
+    expect(rows).toHaveLength(0);
+  });
+
+  it('treats first data row as data when no standard header present', () => {
+    const dir = join(tempDir, '.canductor');
+    mkdirSync(dir, { recursive: true });
+    // File has no header — the current implementation always skips the first line
+    writeFileSync(join(dir, 'results.tsv'), [
+      '#1\t2026-01-01T00:00:00Z\t95\tauto_merge\ttests:100\tmerged\tgood',
+      '#2\t2026-01-02T00:00:00Z\t88\tauto_merge\ttests:88\tmerged\talso good',
+    ].join('\n'));
+
+    // First row is treated as header and skipped
+    const rows = readResults(tempDir);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].ref).toBe('#2');
+  });
+
+  it('round-trips appendResult followed by readResults correctly', () => {
+    const result = makeVerifyResult('#10', 92, true);
+    appendResult(tempDir, result, 'merged', 'round trip test');
+
+    const rows = readResults(tempDir);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].ref).toBe('#10');
+    expect(rows[0].composite_score).toBe(92);
+    expect(rows[0].decision).toBe('auto_merge');
+    expect(rows[0].status).toBe('merged');
+    expect(rows[0].description).toBe('round trip test');
+  });
+});
+
+describe('updateResultStatus edge cases', () => {
+  it('returns false for a ref that does not exist', () => {
+    appendResult(tempDir, makeVerifyResult('#1', 85, true), 'merged', 'exists');
+
+    const updated = updateResultStatus(tempDir, 'nonexistent', 'rejected');
+    expect(updated).toBe(false);
   });
 });

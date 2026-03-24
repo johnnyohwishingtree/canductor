@@ -27,10 +27,15 @@ export function readResults(repoRoot: string): ResultRow[] {
   const lines = readFileSync(path, 'utf-8').trim().split('\n');
   if (lines.length <= 1) return []; // header only
 
-  return lines.slice(1).map(line => {
-    const [ref, timestamp, composite_score, decision, layer_scores, status, description] =
-      line.split('\t');
-    return {
+  const rows: ResultRow[] = [];
+  for (const line of lines.slice(1)) {
+    if (!line.trim()) continue; // skip empty lines
+
+    const fields = line.split('\t');
+    if (fields.length !== 7) continue; // skip corrupted rows
+
+    const [ref, timestamp, composite_score, decision, layer_scores, status, description] = fields;
+    rows.push({
       ref,
       timestamp,
       composite_score: parseFloat(composite_score),
@@ -38,8 +43,9 @@ export function readResults(repoRoot: string): ResultRow[] {
       layer_scores,
       status: status as ResultRow['status'],
       description,
-    };
-  });
+    });
+  }
+  return rows;
 }
 
 /** Append a verification result to the TSV log. */
