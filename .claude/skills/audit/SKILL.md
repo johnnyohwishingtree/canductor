@@ -162,6 +162,45 @@ gh issue create --repo "$REPO" \
   --body "<follow .canductor/templates/story.md with Tasks section>"
 ```
 
+## Attribute findings to planning task types
+
+Audit findings are symptoms of stories/epics that didn't account for something. Log each finding to `.canductor/tasks.tsv` attributed to the task type that should have prevented it:
+
+```bash
+[ -f .canductor/tasks.tsv ] || echo -e "task_type\tguided_by\tref\tverify_cycle\tfailure\ttimestamp" > .canductor/tasks.tsv
+```
+
+| Finding type | Attributed to | Why |
+|---|---|---|
+| Dead exports | `story` (.canductor/templates/story.md) | Story didn't include cleanup task |
+| Stale references | `story` (.canductor/templates/story.md) | Story didn't require updating references |
+| Untested modules | `story` (.canductor/templates/story.md) | Story didn't include test task |
+| Missing patterns | `epic` (.canductor/templates/epic.md) | Epic introduced new task types without patterns |
+| Architecture violations | `story` (.canductor/templates/story.md) | Story allowed wrong dependency direction |
+| README drift | `story` (.canductor/templates/story.md) | Story changed CLI without updating README |
+
+For each finding, log it:
+```bash
+echo -e "story\t.canductor/templates/story.md\taudit-$DATE\t1\t<finding summary>\t$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> .canductor/tasks.tsv
+```
+
+This means the `story` and `epic` task types will accumulate failures from audits. When the pipeline's optimization step (Step 7) runs, it will see:
+
+```
+story: avg 1.3 cycles, 15 uses — 4 audit failures
+  → Failures: "dead exports", "stale references", "missing tests", "README drift"
+  → Optimization: update .canductor/templates/story.md acceptance criteria
+    to require reference checks, export verification, README updates
+```
+
+The planning templates get better, future stories prevent the issues the audit found.
+
+Commit the updated tasks.tsv along with the audit epic:
+```bash
+git add .canductor/tasks.tsv
+git diff --cached --quiet || git commit -m "chore: log audit findings to task tracking" && git push origin master
+```
+
 ## What NOT to flag
 
 - Scores in results.tsv being 98-99 (that's expected with self-review)
