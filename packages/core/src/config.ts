@@ -8,6 +8,7 @@ import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import { z } from 'zod';
 import type { CanductorConfig, ConfigValidation, ConfigValidationIssue, LayerInfo } from './types.js';
 import { evaluateExpression, buildPolicyContext } from './policy.js';
+import { validateGuardrailPatterns } from './guardrail.js';
 
 const GuardrailPatternSchema = z.object({
   pattern: z.string(),
@@ -199,6 +200,17 @@ export function validateConfig(repoRoot: string): ConfigValidation {
           message: `Guardrail layer "${key}" has no include patterns and no patterns — nothing to check`,
           path: `layers.${key}`,
         });
+      }
+
+      if (layer.patterns && layer.patterns.length > 0) {
+        const regexErrors = validateGuardrailPatterns(layer.patterns);
+        for (const regexError of regexErrors) {
+          errors.push({
+            level: 'error',
+            message: `Guardrail layer "${key}": ${regexError}`,
+            path: `layers.${key}.patterns`,
+          });
+        }
       }
     }
   }

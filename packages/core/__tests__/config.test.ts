@@ -411,6 +411,29 @@ policy:
     expect(result.errors.some(e => e.message.includes('nothing to check'))).toBe(true);
   });
 
+  it('returns error for guardrail layer with invalid regex pattern', () => {
+    writeConfig(`version: 1
+layers:
+  guard:
+    name: guard
+    type: guardrail
+    weight: 0.2
+    include:
+      - "src/**/*.ts"
+    patterns:
+      - pattern: "[invalid"
+        message: "bad bracket regex"
+policy:
+  auto_merge: "all_pass"
+  human_review: "false"
+  block: "any_fail"
+`);
+    const result = validateConfig(tempDir);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some(e => e.message.includes('Invalid regex'))).toBe(true);
+    expect(result.errors.some(e => e.message.includes('[invalid'))).toBe(true);
+  });
+
   it('warns when all weights sum to zero', () => {
     writeConfig(`version: 1
 layers:
