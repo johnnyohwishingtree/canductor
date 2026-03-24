@@ -27,6 +27,7 @@ function makeResult(ref: string, score: number): VerifyResult {
     composite_score: score,
     decision: score >= 80 ? 'auto_merge' : 'block',
     summary: '',
+    wall_clock_ms: 150,
   };
 }
 
@@ -119,6 +120,42 @@ describe('generateReport', () => {
     const report = generateReport(tempDir);
 
     expect(report.markdown).toContain('🔴');
+  });
+
+  it('includes timing section when verifyResult is provided', () => {
+    const vr = makeResult('#10', 92);
+    appendResult(tempDir, vr, 'merged', 'Test PR');
+
+    const report = generateReport(tempDir, '#10', vr);
+
+    expect(report.markdown).toContain('### Timing');
+    expect(report.markdown).toContain('Wall clock: 150ms');
+    expect(report.markdown).toContain('speedup vs sequential 300ms');
+    expect(report.markdown).toContain('| tests | 100ms |');
+    expect(report.markdown).toContain('| code_quality | 200ms |');
+  });
+
+  it('includes timing data in report data when verifyResult provided', () => {
+    const vr = makeResult('#10', 92);
+    appendResult(tempDir, vr, 'merged', 'Test PR');
+
+    const report = generateReport(tempDir, '#10', vr);
+
+    expect(report.timing).toBeDefined();
+    expect(report.timing!.wall_clock_ms).toBe(150);
+    expect(report.timing!.sequential_ms).toBe(300);
+    expect(report.timing!.speedup).toBe(2);
+    expect(report.timing!.layers).toHaveLength(2);
+    expect(report.timing!.layers[0]).toEqual({ name: 'tests', duration_ms: 100 });
+  });
+
+  it('omits timing section when no verifyResult', () => {
+    appendResult(tempDir, makeResult('#10', 92), 'merged', 'Test PR');
+
+    const report = generateReport(tempDir, '#10');
+
+    expect(report.markdown).not.toContain('### Timing');
+    expect(report.timing).toBeUndefined();
   });
 
   it('JSON mode returns structured data', () => {

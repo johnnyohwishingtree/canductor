@@ -9,12 +9,21 @@ import { readResults, getStatus, getTrend } from './results.js';
 import type { PipelineStatus, TrendEntry } from './results.js';
 import type { ResultRow } from './types.js';
 
+/** Timing data extracted from layer scores. */
+export interface TimingData {
+  wall_clock_ms: number;
+  sequential_ms: number;
+  speedup: number;
+  layers: Array<{ name: string; duration_ms: number }>;
+}
+
 /** Structured report output for --json mode. */
 export interface ReportData {
   markdown: string;
   score: number;
   decision: string;
   ref: string;
+  timing?: TimingData;
 }
 
 /**
@@ -70,7 +79,7 @@ function parseLayerScores(layerScores: string): Array<{ name: string; score: num
  * @param ref - Optional ref to filter the report to a specific result
  * @returns ReportData with markdown string and metadata
  */
-export function generateReport(repoRoot: string, ref?: string): ReportData {
+export function generateReport(repoRoot: string, ref?: string, verifyResult?: import('./types.js').VerifyResult): ReportData {
   const results = readResults(repoRoot);
 
   if (results.length === 0) {
@@ -131,6 +140,31 @@ export function generateReport(repoRoot: string, ref?: string): ReportData {
     lines.push('');
   }
 
+  // Timing breakdown (when verify result is available)
+  let timing: TimingData | undefined;
+  if (verifyResult) {
+    const sequentialMs = verifyResult.layers.reduce((sum, l) => sum + l.duration_ms, 0);
+    const wallClockMs = verifyResult.wall_clock_ms;
+    const speedup = sequentialMs > 0 ? sequentialMs / wallClockMs : 1;
+    timing = {
+      wall_clock_ms: wallClockMs,
+      sequential_ms: sequentialMs,
+      speedup: parseFloat(speedup.toFixed(1)),
+      layers: verifyResult.layers.map(l => ({ name: l.name, duration_ms: l.duration_ms })),
+    };
+
+    lines.push('### Timing');
+    lines.push('');
+    lines.push(`Wall clock: ${wallClockMs}ms (${speedup.toFixed(1)}x speedup vs sequential ${sequentialMs}ms)`);
+    lines.push('');
+    lines.push('| Layer | Duration |');
+    lines.push('|-------|----------|');
+    for (const l of verifyResult.layers) {
+      lines.push(`| ${l.name} | ${l.duration_ms}ms |`);
+    }
+    lines.push('');
+  }
+
   // Trend
   if (trend.entries.length > 0) {
     lines.push('### Trend (last 5)');
@@ -160,5 +194,6 @@ export function generateReport(repoRoot: string, ref?: string): ReportData {
     score: targetRow.composite_score,
     decision: targetRow.decision,
     ref: targetRow.ref,
+    timing,
   };
 }

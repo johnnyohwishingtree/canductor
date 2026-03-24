@@ -366,6 +366,30 @@ describe('verify() parallel execution', () => {
     expect(result.wall_clock_ms).toBeGreaterThanOrEqual(0);
   });
 
+  it('verify summary includes wall-clock timing line', async () => {
+    const config: CanductorConfig = {
+      version: 1,
+      layers: {
+        echo: {
+          name: 'echo',
+          type: 'deterministic',
+          run: 'echo ok',
+          weight: 1.0,
+        },
+      },
+      policy: {
+        auto_merge: 'all_pass',
+        human_review: 'any_agent_review_fail',
+        block: 'any_deterministic_fail',
+      },
+    };
+
+    const result = await verify('timing-ref', config);
+
+    expect(result.summary).toContain('Wall clock:');
+    expect(result.summary).toContain('speedup vs sequential');
+  });
+
   it('includes wall_clock_ms in every verify result', async () => {
     const config: CanductorConfig = {
       version: 1,
