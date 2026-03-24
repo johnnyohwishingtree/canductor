@@ -124,10 +124,16 @@ Rules in `.claude/rules/` are auto-loaded into every Claude session. See `.claud
 
 Current baseline quality score: 99/100
 
+### Task type performance:
+- **module** (.claude/templates/module.md): avg 1 cycles, 2 uses — good
+- **test** (.claude/templates/test.md): avg 1 cycles, 3 uses — converged
+- **update-exports** (.claude/templates/module.md): avg 1 cycles, 1 uses — good
+- **new-cli-command** (.claude/patterns/new-cli-command.md): avg 1 cycles, 2 uses — good
+
 ### Recent verification results:
-- 76: score=98 merged (Verified 76)
-- 81: score=99 merged (Verified 81)
-- 82: score=99 merged (Verified 82)
 - 83: score=99 merged (Verified 83)
 - 88: score=99 merged (Verified 88)
+- 89: score=99 merged (Verified 89)
+- 90: score=99 merged (Verified 90)
+- 93: score=98 merged (Verified 93)
 <!-- canductor:end -->
