@@ -9,6 +9,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import type { ResultRow, VerifyResult, QualityContext, CanductorConfig, StallDetection, LayerCorrelation } from './types.js';
 import { summarizeLearnings } from './learnings.js';
+import { summarizeTaskPerformance } from './tasks.js';
 
 const RESULTS_PATH = '.canductor/results.tsv';
 const HEADER = 'ref\ttimestamp\tcomposite_score\tdecision\tlayer_scores\tstatus\tdescription';
@@ -602,6 +603,13 @@ export function generatePromptContext(repoRoot: string): string {
   const learningsSummary = summarizeLearnings(repoRoot);
   if (learningsSummary) {
     lines.push(learningsSummary);
+    lines.push('');
+  }
+
+  // Include task type performance
+  const taskSummary = summarizeTaskPerformance(repoRoot);
+  if (taskSummary) {
+    lines.push(taskSummary);
     lines.push('');
   }
 
