@@ -990,6 +990,72 @@ describe('canductor health', () => {
   });
 });
 
+describe('canductor config-check', () => {
+  let configCheckDir: string;
+
+  beforeEach(() => {
+    configCheckDir = join(TEST_DIR, `config-check-${Date.now()}`);
+    mkdirSync(configCheckDir, { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(configCheckDir, { recursive: true, force: true });
+  });
+
+  it('reports valid config with exit 0', () => {
+    setupConfig(configCheckDir);
+    const { stdout, exitCode } = runCli('config-check', configCheckDir);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('Config is valid');
+  });
+
+  it('reports invalid config with exit 1', () => {
+    setupConfig(configCheckDir, 'version: 999\n');
+    const { stdout, exitCode } = runCli('config-check', configCheckDir);
+    expect(exitCode).toBe(1);
+    expect(stdout).toContain('ERROR');
+  });
+
+  it('outputs valid JSON with --json flag', () => {
+    setupConfig(configCheckDir);
+    const { stdout, exitCode } = runCli('config-check --json', configCheckDir);
+    expect(exitCode).toBe(0);
+    const parsed = JSON.parse(stdout.trim());
+    expect(parsed).toHaveProperty('valid');
+    expect(parsed).toHaveProperty('errors');
+    expect(parsed).toHaveProperty('warnings');
+  });
+});
+
+describe('canductor report', () => {
+  let reportDir: string;
+
+  beforeEach(() => {
+    reportDir = join(TEST_DIR, `report-${Date.now()}`);
+    mkdirSync(reportDir, { recursive: true });
+    setupConfig(reportDir);
+  });
+
+  afterEach(() => {
+    rmSync(reportDir, { recursive: true, force: true });
+  });
+
+  it('outputs markdown text after verification', () => {
+    runCli('verify report-test', reportDir);
+    const { stdout, exitCode } = runCli('report', reportDir);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('#');
+  });
+
+  it('outputs valid JSON with --json flag', () => {
+    runCli('verify report-json', reportDir);
+    const { stdout, exitCode } = runCli('report --json', reportDir);
+    expect(exitCode).toBe(0);
+    const parsed = JSON.parse(stdout.trim());
+    expect(parsed).toHaveProperty('markdown');
+  });
+});
+
 // Cleanup top-level test dir
 afterEach(() => {
   // Individual test suites clean their own dirs
