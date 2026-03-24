@@ -233,7 +233,11 @@ export interface Finding {
   finding: string;
   ref: string;
   timestamp: string;
+  resolved?: boolean;
 }
+
+/** Filter mode for readFindings. */
+export type FindingsFilter = 'all' | 'active' | 'resolved';
 
 /** Combined insights from trajectory analysis and layer failure correlations. */
 export interface InsightsResult {
