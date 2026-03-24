@@ -22,6 +22,8 @@ export { listStaleBranches, deleteBranches } from './clean.js';
 export type { StaleBranch } from './clean.js';
 export { appendTaskResult, readTaskResults, analyzeTaskTypes, getOptimizationTargets, resolveGuidedBy, summarizeTaskPerformance } from './tasks.js';
 export type { TaskResult, TaskTypeAnalysis, OptimizationTarget } from './tasks.js';
+export { readFindings, runHealthCheck } from './diagnostics.js';
+export type { HealthReport } from './diagnostics.js';
 export type {
   CanductorConfig,
   LayerConfig,
@@ -46,5 +48,6 @@ export type {
   GuardrailViolation,
   ConfigValidation,
   ConfigValidationIssue,
+  Finding,
   LayerInfo,
 } from './types.js';
