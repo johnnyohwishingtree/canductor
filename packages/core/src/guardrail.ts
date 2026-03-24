@@ -67,6 +67,24 @@ export function runGuardrailLayer(layer: LayerConfig, repoRoot: string): LayerRe
   };
 }
 
+/**
+ * Validate guardrail regex patterns and return errors for invalid ones.
+ * Used by config-check to report bad patterns before running the layer.
+ */
+export function validateGuardrailPatterns(
+  patterns: Array<{ pattern: string; message: string }>,
+): string[] {
+  const errors: string[] = [];
+  for (const { pattern } of patterns) {
+    try {
+      new RegExp(pattern, 'g');
+    } catch (err) {
+      errors.push(`Invalid regex "${pattern}": ${(err as Error).message}`);
+    }
+  }
+  return errors;
+}
+
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
