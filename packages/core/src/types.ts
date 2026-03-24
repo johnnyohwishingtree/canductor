@@ -226,6 +226,15 @@ export interface ConfigValidation {
   warnings: ConfigValidationIssue[];
 }
 
+/** A single finding from an audit run (.canductor/findings.tsv). */
+export interface Finding {
+  category: string;
+  template: string;
+  finding: string;
+  ref: string;
+  timestamp: string;
+}
+
 /** Combined insights from trajectory analysis and layer failure correlations. */
 export interface InsightsResult {
   trajectory: TrajectoryAnalysis;
