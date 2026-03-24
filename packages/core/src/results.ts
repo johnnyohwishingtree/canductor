@@ -7,7 +7,7 @@
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
-import type { ResultRow, VerifyResult, QualityContext, CanductorConfig, StallDetection, LayerCorrelation, LayerTrajectory, TrajectoryAnalysis } from './types.js';
+import type { ResultRow, VerifyResult, QualityContext, CanductorConfig, StallDetection, LayerCorrelation, LayerTrajectory, TrajectoryAnalysis, InsightsResult } from './types.js';
 import { summarizeLearnings } from './learnings.js';
 import { summarizeTaskPerformance } from './tasks.js';
 
@@ -389,6 +389,47 @@ export function analyzeTrajectory(results: ResultRow[], window = 10): Trajectory
   layers.sort((a, b) => a.layer.localeCompare(b.layer));
 
   return { overall, layers };
+}
+
+/**
+ * Generate combined insights from trajectory analysis and layer failure correlations.
+ * Produces actionable recommendations based on the data.
+ */
+export function generateInsights(repoRoot: string): InsightsResult {
+  const results = readResults(repoRoot);
+  const trajectory = analyzeTrajectory(results);
+  const correlations = correlateLayerFailures(results);
+  const recommendations: string[] = [];
+
+  // Recommend based on declining layers
+  const declining = trajectory.layers.filter(l => l.direction === 'declining');
+  for (const layer of declining) {
+    recommendations.push(
+      `Layer "${layer.layer}" is declining (slope: ${layer.slope}). Review recent changes affecting this layer.`
+    );
+  }
+
+  // Recommend based on overall trend
+  if (trajectory.overall.direction === 'declining') {
+    recommendations.push(
+      'Overall quality is trending downward. Consider pausing new features to address technical debt.'
+    );
+  }
+
+  // Recommend based on correlated failures
+  for (const corr of correlations) {
+    if (corr.ratio >= 0.7) {
+      recommendations.push(
+        `Layers "${corr.layer1}" and "${corr.layer2}" frequently fail together (${Math.round(corr.ratio * 100)}% co-failure rate). They may share a root cause.`
+      );
+    }
+  }
+
+  if (recommendations.length === 0 && results.length > 0) {
+    recommendations.push('All layers are stable. No action needed.');
+  }
+
+  return { trajectory, correlations, recommendations };
 }
 
 /** A single layer diff entry. */
