@@ -7,7 +7,7 @@
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
-import type { ResultRow, VerifyResult, QualityContext, CanductorConfig, StallDetection } from './types.js';
+import type { ResultRow, VerifyResult, QualityContext, CanductorConfig, StallDetection, LayerCorrelation } from './types.js';
 import { summarizeLearnings } from './learnings.js';
 
 const RESULTS_PATH = '.canductor/results.tsv';
@@ -230,6 +230,73 @@ export function detectStalls(results: ResultRow[]): StallDetection[] {
   }
 
   return stalls;
+}
+
+/**
+ * Analyze which layer failures tend to co-occur across verification runs.
+ * Returns pairs of layers sorted by correlation strength (highest first).
+ */
+export function correlateLayerFailures(results: ResultRow[]): LayerCorrelation[] {
+  // Parse layer scores for each run, identifying which layers scored < 80
+  const failureSets: Set<string>[] = [];
+
+  for (const row of results) {
+    if (!row.layer_scores || row.layer_scores.trim() === '') continue;
+
+    const failed = new Set<string>();
+    const scores = row.layer_scores.split(',');
+    for (const s of scores) {
+      const colonIdx = s.lastIndexOf(':');
+      if (colonIdx === -1) continue;
+      const name = s.slice(0, colonIdx).trim();
+      const val = parseFloat(s.slice(colonIdx + 1));
+      if (!isNaN(val) && val < 80) {
+        failed.add(name);
+      }
+    }
+    if (failed.size > 0) {
+      failureSets.push(failed);
+    }
+  }
+
+  // Count co-failures and individual failures for each layer pair
+  const allFailedLayers = new Set<string>();
+  for (const fs of failureSets) {
+    for (const l of fs) allFailedLayers.add(l);
+  }
+
+  const layers = [...allFailedLayers].sort();
+  const correlations: LayerCorrelation[] = [];
+
+  for (let i = 0; i < layers.length; i++) {
+    for (let j = i + 1; j < layers.length; j++) {
+      const l1 = layers[i];
+      const l2 = layers[j];
+
+      let coFailures = 0;
+      let eitherFailed = 0;
+
+      for (const fs of failureSets) {
+        const has1 = fs.has(l1);
+        const has2 = fs.has(l2);
+        if (has1 || has2) eitherFailed++;
+        if (has1 && has2) coFailures++;
+      }
+
+      if (coFailures >= 2) {
+        correlations.push({
+          layer1: l1,
+          layer2: l2,
+          coFailures,
+          eitherFailed,
+          ratio: eitherFailed > 0 ? coFailures / eitherFailed : 0,
+        });
+      }
+    }
+  }
+
+  correlations.sort((a, b) => b.ratio - a.ratio);
+  return correlations;
 }
 
 /** A single layer diff entry. */
