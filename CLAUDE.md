@@ -122,12 +122,12 @@ Rules in `.claude/rules/` are auto-loaded into every Claude session. See `.claud
 <!-- canductor:start -->
 ## Canductor Quality Context
 
-Current baseline quality score: 98/100
+Current baseline quality score: 99/100
 
 ### Recent verification results:
-- 65: score=98 merged (Verified 65)
-- 69: score=98 merged (Verified 69)
-- 74: score=99 merged (Verified 74)
 - 75: score=98 merged (Verified 75)
 - 76: score=98 merged (Verified 76)
+- 81: score=99 merged (Verified 81)
+- 82: score=99 merged (Verified 82)
+- 83: score=99 merged (Verified 83)
 <!-- canductor:end -->
