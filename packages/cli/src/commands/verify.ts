@@ -106,6 +106,7 @@ export async function cmdVerify(args: string[], repoRoot: string): Promise<void>
       score: l.score,
       duration_ms: l.duration_ms,
       timed_out: l.timed_out ?? false,
+      retries_attempted: l.retries_attempted ?? 0,
     }));
     const output: Record<string, unknown> = {
       score: result.composite_score,

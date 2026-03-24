@@ -127,18 +127,37 @@ export function runDeterministicLayer(layer: LayerConfig, options?: VerifyOption
   };
 }
 
-/** Run a screenshot-diff layer (capture + compare to baseline). */
+/** Run a screenshot-diff layer (capture + compare to baseline) with optional retry. */
 export function runScreenshotDiffLayer(layer: LayerConfig): LayerResult {
   const start = Date.now();
   const timeout = layer.timeout_ms ?? defaultTimeoutMs(layer.type);
+  const maxRetries = layer.retry ?? defaultRetry(layer.type);
+  const retryDelay = layer.retry_delay_ms ?? 1000;
+  let retriesAttempted = 0;
 
-  // Step 1: Capture current screenshots
+  // Step 1: Capture current screenshots (with retry)
   if (layer.capture) {
-    try {
-      execSync(layer.capture, { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], timeout });
-    } catch (err: unknown) {
-      const error = err as { stderr?: string; code?: string };
-      if (error.code === 'ETIMEDOUT') {
+    let captureSuccess = false;
+    let lastError: { stderr?: string; code?: string } | undefined;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      if (attempt > 0 && retryDelay > 0) {
+        execSync(`sleep ${retryDelay / 1000}`, { stdio: 'ignore' });
+      }
+
+      try {
+        execSync(layer.capture, { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], timeout });
+        captureSuccess = true;
+        retriesAttempted = attempt;
+        break;
+      } catch (err: unknown) {
+        lastError = err as { stderr?: string; code?: string };
+        retriesAttempted = attempt;
+      }
+    }
+
+    if (!captureSuccess && lastError) {
+      if (lastError.code === 'ETIMEDOUT') {
         const usedTimeout = timeout ?? 0;
         return {
           name: layer.name,
@@ -148,6 +167,7 @@ export function runScreenshotDiffLayer(layer: LayerConfig): LayerResult {
           errors: `Screenshot capture timed out after ${usedTimeout}ms`,
           duration_ms: Date.now() - start,
           timed_out: true,
+          retries_attempted: retriesAttempted,
         };
       }
       return {
@@ -155,8 +175,9 @@ export function runScreenshotDiffLayer(layer: LayerConfig): LayerResult {
         type: 'screenshot-diff',
         pass: false,
         score: 0,
-        errors: `Screenshot capture failed: ${error.stderr ?? 'unknown error'}`,
+        errors: `Screenshot capture failed: ${lastError.stderr ?? 'unknown error'}`,
         duration_ms: Date.now() - start,
+        retries_attempted: retriesAttempted,
       };
     }
   }
@@ -171,6 +192,7 @@ export function runScreenshotDiffLayer(layer: LayerConfig): LayerResult {
       score: 100,
       errors: 'No baseline directory — first run, establishing baseline',
       duration_ms: Date.now() - start,
+      retries_attempted: retriesAttempted,
     };
   }
 
@@ -192,6 +214,7 @@ export function runScreenshotDiffLayer(layer: LayerConfig): LayerResult {
       score: 0,
       errors: `Current screenshots directory not found: ${currentDir}`,
       duration_ms: Date.now() - start,
+      retries_attempted: retriesAttempted,
     };
   }
 
@@ -207,6 +230,7 @@ export function runScreenshotDiffLayer(layer: LayerConfig): LayerResult {
     score,
     errors: diffResult.pass ? '' : diffResult.summary,
     duration_ms: Date.now() - start,
+    retries_attempted: retriesAttempted,
   };
 }
 
