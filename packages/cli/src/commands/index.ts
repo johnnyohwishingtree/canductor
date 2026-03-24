@@ -10,7 +10,7 @@ import {
 import {
   cmdInsights, cmdTasks, cmdReport,
   cmdHealth,
-} from './analytics.js';
+} from './analytics-diagnostics.js';
 import {
   cmdInit, cmdInject, cmdSuggest, cmdContext,
   cmdResultUpdate, cmdConfigCheck, cmdClean,

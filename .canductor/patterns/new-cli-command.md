@@ -17,7 +17,8 @@ Do NOT put business logic in `cli.ts` — it should only parse args and call cor
 
 Command handlers live in `packages/cli/src/commands/` grouped by concern:
 - `verify.ts` — verification commands (verify, score, layer-test)
-- `analytics.ts` — read-only analysis (status, trend, diff, baseline, history, insights, tasks, report)
+- `analytics-query.ts` — results querying (status, trend, diff, baseline, history)
+- `analytics-diagnostics.ts` — analysis/diagnostics (insights, tasks, report, health)
 - `utility.ts` — setup/maintenance (init, inject, suggest, context, result-update, config-check, clean, skill-lint, layers)
 
 **Add the handler function to the correct module:**
