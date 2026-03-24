@@ -13,46 +13,49 @@ If the command needs new logic, add it to the appropriate `packages/core/src/` m
 
 Do NOT put business logic in `cli.ts` — it should only parse args and call core functions.
 
-### 2. `packages/cli/src/cli.ts` — Add the command
+### 2. Add the command handler to the appropriate command module
 
-**Update the usage banner** at the top of `printUsage()`:
+Command handlers live in `packages/cli/src/commands/` grouped by concern:
+- `verify.ts` — verification commands (verify, score, layer-test)
+- `analytics.ts` — read-only analysis (status, trend, diff, baseline, history, insights, tasks, report)
+- `utility.ts` — setup/maintenance (init, inject, suggest, context, result-update, config-check, clean, skill-lint, layers)
+
+**Add the handler function to the correct module:**
 ```typescript
-function printUsage(): void {
-  console.log(`canductor — quality verification for agentic output
-
-Usage:
-  ...existing commands...
-  canductor <new-cmd> [args]    <one-line description>
-`);
-}
-```
-
-**Add the command handler function:**
-```typescript
-function cmdNewCommand(): void {
-  // Parse args specific to this command
+export function cmdNewCommand(args: string[], repoRoot: string): void {
   const arg1 = args[1];
   if (!arg1) {
     console.error('Usage: canductor <new-cmd> <required-arg>');
     process.exit(1);
   }
 
-  // Call core logic
   const result = coreFunction(repoRoot, arg1);
-
-  // Output result
   console.log(result);
 }
 ```
 
-**Add the case to `main()` switch:**
+### 3. Register the command in the registry
+
+**`packages/cli/src/commands/index.ts`** — add to the `commands` Map and re-export:
 ```typescript
-case 'new-cmd':
-  cmdNewCommand();
-  break;
+import { cmdNewCommand } from './<module>.js';
+
+export const commands = new Map<string, CommandFn>([
+  // ...existing entries...
+  ['new-cmd', cmdNewCommand],
+]);
+
+export { /* ...existing exports..., */ cmdNewCommand };
 ```
 
-### 3. `packages/cli/__tests__/cli.test.ts` — Add tests
+### 4. Update `packages/cli/src/cli.ts` usage banner
+
+**Add the command to `printUsage()`:**
+```typescript
+  canductor <new-cmd> [args]    <one-line description>
+```
+
+### 5. `packages/cli/__tests__/cli.test.ts` — Add tests
 
 Add tests that invoke the CLI as a subprocess:
 ```typescript
@@ -71,14 +74,14 @@ describe('canductor <new-cmd>', () => {
 });
 ```
 
-### 4. Update the pipeline skill (if applicable)
+### 6. Update the pipeline skill (if applicable)
 
 If this command should run during the pipeline loop, update `.claude/skills/pipeline/SKILL.md` to include it at the appropriate step. Common places:
 - **Step 2** (inject): commands that update context
 - **Step 5** (verify): commands that check quality
 - **Step 7** (plan): commands that analyze the codebase
 
-### 5. Run checks
+### 7. Run checks
 
 ```bash
 pnpm build      # CLI must compile
@@ -88,13 +91,15 @@ pnpm test       # CLI tests pass
 
 ## Checklist
 
-- [ ] Core logic in `packages/core/` (not in cli.ts)
-- [ ] Core function exported from `index.ts`
-- [ ] Usage banner updated in `printUsage()`
-- [ ] Command handler function added
-- [ ] Switch case added in `main()`
+- [ ] Core logic in `packages/core/` (not in command modules)
+- [ ] Core function exported from `packages/core/src/index.ts`
+- [ ] Command handler in the correct `packages/cli/src/commands/` module
+- [ ] Handler receives `(args: string[], repoRoot: string)` parameters
+- [ ] Command registered in `packages/cli/src/commands/index.ts` Map
+- [ ] Handler re-exported from `packages/cli/src/commands/index.ts`
+- [ ] Usage banner updated in `printUsage()` in `packages/cli/src/cli.ts`
 - [ ] CLI integration tests (happy + error path)
 - [ ] Pipeline skill updated (if command belongs in the loop)
 - [ ] `pnpm build && pnpm typecheck && pnpm test` passes
 
-<!-- canductor:pattern-version:1 -->
+<!-- canductor:pattern-version:2 -->
