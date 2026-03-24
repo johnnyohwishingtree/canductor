@@ -4,51 +4,91 @@ A quality harness that fine-tunes your codebase so AI agents write better code e
 
 ## The Problem
 
-AI agents can write code. But how do you know the code is actually good — for your specific project, your patterns, your standards?
+AI agents can write code. But how do you know the code is actually good — for *your specific project*, your patterns, your standards?
 
 Tests tell you it works. Canductor tells you it's *good* — and gets better at telling you over time.
 
 ## How It Works
 
-Canductor sits beside your repo as a quality harness. It scores agent output, logs results, and feeds patterns back into agent prompts. The codebase accumulates "context-level fine-tuning" — not model weights, but the rules, rubrics, and history that shape how agents behave in your project.
+Canductor tracks **what goes wrong** when agents implement code and **which instructions caused the problem**. Over time, it optimizes the instructions (templates, patterns, rules) so agents make fewer mistakes.
 
 ```
-Agent writes code
-  -> Canductor scores it (tests, visual diff, rubric review)
-  -> Composite quality score (0-100)
-  -> Policy decision (auto-merge / human-review / block)
-  -> Result logged to .canductor/results.tsv
-  -> History injected into agent prompts next run
-  -> Agent avoids past mistakes, output improves over time
+Story has tasks: [module], [test], [new-cli-command]
+  → Each task type maps to a .claude/ file by name
+  → Pipeline implements, tracks verify attempts per task type
+  → Task types averaging > 1 attempt → optimize that .claude/ file
+  → Task types at 1 attempt consistently → converged, leave alone
 ```
 
-Inspired by [autoresearch](https://github.com/karpathy/autoresearch) — try, measure, keep/discard, learn. But for code quality instead of ML metrics.
+The metric is **average verify cycles per task type** — canductor's equivalent of [autoresearch](https://github.com/karpathy/autoresearch)'s val_bpb. Lower is better. 1.0 means the `.claude/` file perfectly guides the agent.
 
 ## The Self-Building Pipeline
 
-Canductor builds itself using canductor. A **Claude Code scheduled task** runs hourly and follows the pipeline skill (`.claude/skills/pipeline/SKILL.md`):
+Canductor builds itself using canductor. A **Claude Code scheduled task** runs hourly and follows `.claude/skills/pipeline/SKILL.md`:
 
 1. **Merge open PRs** — keeps master current
-2. **Inject context** — `canductor inject CLAUDE.md` feeds past results into the prompt
-3. **Implement** — picks up a `story,pending` issue, creates branch, writes code
-4. **Verify** — runs `canductor verify` (typecheck + tests + rubric self-review)
-5. **Merge** — creates PR, approves, squash merges
-6. **Plan** — if queue is empty, analyzes the codebase and creates a new epic with stories
+2. **Inject context** — `canductor inject CLAUDE.md` feeds past learnings into the prompt
+3. **Find story** — picks up the next `story,pending` issue
+4. **Implement** — reads the story's Tasks section, follows the referenced `.claude/` files
+5. **Verify & fix loop** — up to 6 attempts. On failure, attributes the error to the task type that caused it and logs to `tasks.tsv`
+6. **Merge & close** — creates PR, merges, closes story. Auto-closes the epic if all stories are done.
+7. **Optimize** — when the queue is empty, analyzes task tracking data. Updates `.claude/` files that have high avg attempts. Creates new patterns for new task types.
+8. **Plan** — when queue is empty and optimization is done, creates a new epic with stories.
 
 **To start work:** create a GitHub Issue with `story` and `pending` labels.
 
 ### Why Claude Code, not GitHub Actions
 
-The previous version used GitHub Actions to orchestrate work (`pipeline.yml` dispatching `agent.yml`). This had a critical cost problem: `claude-code-action` holds a GitHub runner for 10-30 minutes while Claude works. Autonomous pipelines easily hit $250+/month in runner costs alone.
+The previous version used GitHub Actions (`pipeline.yml` dispatching `agent.yml`). `claude-code-action` holds a runner for 10-30 min per story — easily $250+/month.
 
-Claude Code scheduled tasks flip the model — Claude runs on Anthropic's infrastructure (included in subscription) and uses `gh` CLI to interact with GitHub. Zero runner cost. The scheduled task prompt is just two lines:
+Claude Code scheduled tasks flip the model — Claude runs on Anthropic's infrastructure (included in subscription) and uses `gh` CLI to interact with GitHub. Zero runner cost. The prompt is two lines:
 
 ```
 Read CLAUDE.md for project context.
 Read .claude/skills/pipeline/SKILL.md and follow every step.
 ```
 
-All pipeline logic lives in the repo as a skill file — versioned, testable, and improvable by the pipeline itself.
+## The Learning Loop
+
+The real learning doesn't come from scores — it comes from **failures and what caused them**.
+
+### Task tracking (`.canductor/tasks.tsv`)
+
+Every story is broken into tasks. Each task references a `.claude/` file by name:
+
+```markdown
+## Tasks
+1. [module] Create packages/core/src/clean.ts
+2. [test] Create packages/core/__tests__/clean.test.ts
+3. [new-cli-command] Add clean command to cli.ts
+```
+
+When verification fails, the pipeline attributes the failure to the task that caused it:
+
+```
+task_type          guided_by                           ref   cycle  failure
+test               .claude/templates/test.md           #42   1      vague assertions
+test               .claude/templates/test.md           #42   2      none
+new-cli-command    .claude/patterns/new-cli-command.md  #42   1      none
+test               .claude/templates/test.md           #43   1      none
+```
+
+Over time, this reveals which `.claude/` files need improvement:
+
+```
+test:            avg 1.5 cycles → optimize .claude/templates/test.md
+new-cli-command: avg 1.0 cycles → converged, leave alone
+```
+
+The optimization step (Step 7) reads this data, identifies the failure patterns, and updates the `.claude/` files to address them. The next time that task type appears, the agent follows better instructions and gets it right on the first attempt.
+
+### Learnings (`.canductor/learnings.md`)
+
+Narrative log of what went wrong and how it was fixed. Surfaced in `canductor inject CLAUDE.md` so agents read past failures before starting new work.
+
+### Results (`.canductor/results.tsv`)
+
+Story-level verification scores for trend analysis, status tracking, and quality reporting.
 
 ## Quick Start
 
@@ -72,55 +112,9 @@ canductor verify
    Read CLAUDE.md for project context.
    Read .claude/skills/pipeline/SKILL.md and follow every step.
    ```
-2. Connect the GitHub repo in the scheduled task config
-3. Create labels: `story`, `pending`, `in-progress`, `completed`, `epic`
-4. Create an issue with `story` + `pending` labels
-5. The pipeline picks it up on the next hourly run
-
-Optional: keep `.github/workflows/` for CI-only checks (typecheck, tests) on PRs. These are lightweight and don't hold runners for long.
-
-## Configuration
-
-```yaml
-# .canductor/config.yaml
-version: 1
-
-layers:
-  tests:
-    name: tests
-    type: deterministic
-    run: "npm test"
-    weight: 1.0
-
-  typecheck:
-    name: typecheck
-    type: deterministic
-    run: "npx tsc --noEmit"
-    weight: 1.0
-
-  # Visual regression (screenshot comparison)
-  # visual:
-  #   name: visual
-  #   type: screenshot-diff
-  #   capture: "npx playwright test --project=screenshots"
-  #   baseline: ".canductor/baselines/"
-  #   threshold: 5
-  #   weight: 0.8
-
-  # AI-powered rubric review
-  # code_quality:
-  #   name: code_quality
-  #   type: agent-review
-  #   model: claude-sonnet-4-6
-  #   rubric: ".claude/rubrics/code-quality.md"
-  #   context: ["src/"]
-  #   weight: 0.6
-
-policy:
-  auto_merge: "all_deterministic_pass AND composite_score >= baseline"
-  human_review: "composite_score < baseline"
-  block: "any_deterministic_fail"
-```
+2. Create labels: `story`, `pending`, `in-progress`, `completed`, `epic`
+3. Create an issue with `story` + `pending` labels
+4. The pipeline picks it up on the next hourly run
 
 ## Verification Layer Types
 
@@ -128,53 +122,34 @@ policy:
 Tests, typecheck, lint, security scans. Score is 0 or 100.
 
 ### `screenshot-diff` — Visual regression
-Captures screenshots with Playwright, compares pixel-by-pixel to baseline using pixelmatch. Score based on similarity percentage.
+Pixel-by-pixel comparison using pixelmatch. Score based on similarity percentage.
 
 ### `agent-review` — AI-powered quality review
-Sends code context + a rubric markdown file to Claude. The rubric defines what "good" means for your domain. Returns a structured score with issues. When running inside a Claude Code session, the implementing Claude reviews against the rubric directly (no separate API key needed).
+Claude evaluates code against a rubric markdown file. When running inside a Claude Code session, the implementing Claude reviews its own code against the rubric (no separate API key needed).
 
-## The Learning Loop
-
-Every verification result is logged to `.canductor/results.tsv`:
-
-```
-ref    score  decision      status    description
-#3     77     auto_merge    merged    pipeline function tests
-#4     77     auto_merge    merged    review relay
-#5     82     auto_merge    merged    watcher function
-#6     85     auto_merge    merged    canductor diff command
-```
-
-Run `canductor context` to generate a quality summary, or `canductor inject CLAUDE.md` to automatically update your project instructions with patterns from past results:
-
-```markdown
-## Canductor Quality Context
-
-Current baseline quality score: 80/100
-
-### Recurring issues (avoid these patterns):
-- "visual" layer failed 3 times in the last 10 runs
-
-### Recent verification results:
-- #5: score=82 merged (watcher function)
-- #6: score=85 merged (canductor diff command)
-```
-
-The agent reads this before starting work. No fine-tuning — just accumulated context that gets richer with every PR.
+### `guardrail` — Pattern-based code scanning
+Scans files for required or prohibited patterns. Catches structural issues like missing exports, forbidden APIs, or convention violations.
 
 ## CLI Commands
 
 ```
-canductor init                Create starter .canductor/config.yaml
-canductor verify [ref]        Run all layers, log result, print decision
-canductor score [ref]         Print composite score only
-canductor status              Show pipeline health overview
-canductor trend [--last N]    Show quality trend over last N results
-canductor history             Show results history table
-canductor diff <ref1> <ref2>  Compare quality scores between two refs
-canductor context             Generate quality context for agent prompts
-canductor inject <file>       Inject quality context into a file (e.g., CLAUDE.md)
-canductor suggest             Suggest rule improvements based on history
+canductor init                   Create starter config
+canductor verify [ref]           Run all layers, log result, print decision
+canductor verify --self-review   Output rubric prompt for agent self-evaluation
+canductor score [ref]            Print composite score only
+canductor status                 Pipeline health overview
+canductor trend [--last N]       Quality trend over last N results
+canductor history                Results history table
+canductor diff <ref1> <ref2>     Compare quality between two refs
+canductor baseline               Show/set quality baseline
+canductor tasks                  Task type performance (avg cycles per type)
+canductor insights               Combined trajectory + correlation analysis
+canductor report                 Markdown quality summary
+canductor context                Generate quality context for prompts
+canductor inject <file>          Inject quality context into a file
+canductor suggest                Suggest rule improvements
+canductor clean                  Remove stale merged branches
+canductor skill-lint             Validate SKILL.md frontmatter
 ```
 
 ## Architecture
@@ -182,35 +157,37 @@ canductor suggest             Suggest rule improvements based on history
 ```
 .canductor/
 ├── config.yaml         # What "good" means (layers + policy)
-├── results.tsv         # Verification history (the "training data")
+├── results.tsv         # Story-level verification scores
+├── tasks.tsv           # Task-type attempt tracking (the learning signal)
+├── learnings.md        # What went wrong and how it was fixed
 └── baselines/          # Screenshot baselines
 
 .claude/
 ├── skills/
-│   ├── pipeline/       # /pipeline — the autonomous loop (scheduled task reads this)
-│   └── canductor-verify/  # /canductor-verify — manual quality scoring
-├── templates/          # Artifact structure definitions (epic, story, module, test, etc.)
-├── rubrics/            # Quality evaluation criteria (code, test, skill quality)
-├── patterns/           # Multi-file change recipes (new layer, CLI command, rubric, etc.)
+│   ├── pipeline/       # The autonomous loop (scheduled task reads this)
+│   └── canductor-verify/  # Manual quality scoring
+├── templates/          # File structure definitions (module, test, skill, epic, story)
+├── rubrics/            # Quality criteria (code, test, skill quality)
+├── patterns/           # Multi-file change recipes (new-cli-command, new-layer, etc.)
+├── rules/              # Always-on constraints (tdd, commit-gate, etc.)
 ├── hooks/              # PostToolUse auto-typecheck, Stop session logging
-└── settings.json       # Hook configuration
+└── settings.json       # Permissions + hook configuration
 
 packages/
-├── core/               # Scoring engine, verification layers, results log
+├── core/               # Scoring engine, task tracking, learnings, feedback
 ├── cli/                # CLI tool
-└── github-action/      # GitHub Action wrapper (optional, for CI-only use)
+└── github-action/      # GitHub Action wrapper (optional)
 ```
 
-**No external infrastructure.** GitHub Issues are the task queue. Claude Code is the compute. `.canductor/results.tsv` is the database. Everything lives in the repo.
+**No external infrastructure.** GitHub Issues are the task queue. Claude Code is the compute. The `.canductor/` directory is the database. Everything lives in the repo.
 
 ## Philosophy
 
-- **You define what "good" means.** Canductor provides primitives (deterministic, visual, AI review). You fill in the rubrics.
-- **Scores, not just pass/fail.** A composite score tracks whether agent output is improving.
-- **The repo is the database.** Results committed to the repo. No external service needed.
-- **The agent learns from context, not training.** Past results are injected into prompts. The agent gets more informed, not retrained.
-- **The harness improves itself.** This repo uses canductor to evaluate its own code. The pipeline builds the pipeline.
-- **Skills as pipeline definitions.** Pipeline logic lives in `.claude/skills/pipeline/SKILL.md` — versioned, testable, and improvable by the pipeline itself.
+- **You define what "good" means.** Templates, patterns, and rubrics in `.claude/` encode your project's standards.
+- **The metric is attempts, not scores.** Average verify cycles per task type — objective, continuous, can't be gamed.
+- **The repo is the database.** Results, tasks, and learnings committed to the repo. No external service needed.
+- **The instructions improve themselves.** When a task type takes multiple attempts, the pipeline updates the `.claude/` file that guides it.
+- **Converged types get left alone.** Once a task type consistently passes on the first attempt, optimization skips it.
 
 ## License
 
