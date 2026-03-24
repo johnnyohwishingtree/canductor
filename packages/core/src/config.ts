@@ -6,7 +6,7 @@ import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import { z } from 'zod';
-import type { CanductorConfig, ConfigValidation, ConfigValidationIssue } from './types.js';
+import type { CanductorConfig, ConfigValidation, ConfigValidationIssue, LayerInfo } from './types.js';
 import { evaluateExpression, buildPolicyContext } from './policy.js';
 
 const GuardrailPatternSchema = z.object({
@@ -87,6 +87,32 @@ export function writeConfigBaseline(repoRoot: string, baseline: number): void {
   const parsed = parseYaml(raw);
   parsed.baseline = baseline;
   writeFileSync(configPath, stringifyYaml(parsed));
+}
+
+/**
+ * List all configured verification layers with their type, weight, and key detail.
+ */
+export function listLayers(config: CanductorConfig): LayerInfo[] {
+  return Object.entries(config.layers).map(([key, layer]) => {
+    let detail: string;
+    switch (layer.type) {
+      case 'deterministic':
+        detail = layer.run ? `run: ${layer.run}` : 'no run command';
+        break;
+      case 'agent-review':
+        detail = layer.rubric ? `rubric: ${layer.rubric}` : 'no rubric';
+        break;
+      case 'guardrail':
+        detail = layer.patterns ? `${layer.patterns.length} pattern(s)` : 'no patterns';
+        break;
+      case 'screenshot-diff':
+        detail = layer.baseline ? `baseline: ${layer.baseline}` : 'no baseline';
+        break;
+      default:
+        detail = '';
+    }
+    return { name: key, type: layer.type, weight: layer.weight, detail };
+  });
 }
 
 /**
