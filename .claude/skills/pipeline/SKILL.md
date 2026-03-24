@@ -343,17 +343,61 @@ Read `.canductor/tasks.tsv`. For each task type where `guided_by` is `-` or the 
 3. Also update `.canductor/tasks.tsv` — replace the `-` in `guided_by` with the new file path for all matching rows
 4. Commit the new pattern
 
-**Step 7b: Optimize existing patterns.**
+**Step 7b: Optimize existing patterns and templates.**
 
 Group `.canductor/tasks.tsv` by `task_type`:
 
 1. **Skip types with avg = 1.0 over 3+ uses** — converged, leave alone
-2. **Focus on types with avg > 1** and 3+ uses — these need improvement
+2. **Focus on types with avg > 1 and 3+ uses**, OR types with **any audit failures** (ref starts with `audit-`) — these need improvement
 3. For each optimization target:
-   a. Read the `guided_by` file (e.g., `.canductor/templates/test.md`)
-   b. Read ALL failure reasons from the `failure` column for this task type
-   c. Update the guided_by file to explicitly address those failure patterns — add specific instructions, examples, or warnings about the common mistakes
-   d. Commit the change
+   a. Read the `guided_by` file (e.g., `.canductor/templates/story.md`)
+   b. Collect ALL failure reasons from the `failure` column for this task type
+   c. Separate failures by source:
+      - **Pipeline failures** (ref is a number like `#42`): the instructions were unclear or incomplete — the agent tried to follow them and got it wrong
+      - **Audit failures** (ref starts with `audit-`): the template didn't require the agent to check for this at all — it's a gap in the acceptance criteria or task list
+
+4. For each failure, determine WHERE in the guided_by file to add the fix:
+
+   **If the failure is "dead export" / "stale reference" / "README drift":**
+   → Add to the **Acceptance Criteria** section of the template. Example:
+   ```
+   Before: - [ ] `pnpm typecheck` passes with zero errors
+   After:  - [ ] `pnpm typecheck` passes with zero errors
+           - [ ] No dead exports — every new export in index.ts is imported somewhere
+           - [ ] All references updated — no stale paths to renamed/moved files
+           - [ ] If CLI commands changed, README.md is updated
+   ```
+
+   **If the failure is "missing tests" / "no error path":**
+   → Add to the **Tasks** section guidance or the test template. Example:
+   ```
+   Before: 2. [test] Create tests for the new module
+   After:  2. [test] Create tests — must include happy path + at least one error/edge case
+   ```
+
+   **If the failure is "oversized module" / "wrong dependency direction":**
+   → Add to the **Tasks** section as an explicit check. Example:
+   ```
+   Add task: N. [module] Verify no module exceeds 500 lines — split if needed
+   ```
+
+   **If the failure is "missing pattern for new task type":**
+   → This is an epic template issue. Add to `.canductor/templates/epic.md`:
+   ```
+   Before: Create 2-4 stories following the story template
+   After:  Create 2-4 stories following the story template.
+           If any story introduces a task type that doesn't have a
+           .canductor/patterns/<type>.md file yet, add a final story
+           to create that pattern from the implementation.
+   ```
+
+5. Make the edits. Be specific — add the exact check or instruction that would have caught the failure. Don't add vague guidance like "be careful about exports." Add: "verify every new export in index.ts is imported by at least one file in cli/ or core/."
+
+6. Commit each template/pattern update separately so regressions can be reverted individually:
+   ```bash
+   git add .canductor/templates/story.md
+   git commit -m "optimize: story template — add dead export and reference checks (from audit findings)"
+   ```
 
 **Step 7c: Check for regressions.**
 
