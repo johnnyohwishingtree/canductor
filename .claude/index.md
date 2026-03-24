@@ -37,9 +37,10 @@ Read this file first. It maps every artifact in the pipeline system. Only read i
 
 | Skill | Purpose | Invocation |
 |-------|---------|------------|
-| `skills/pipeline/SKILL.md` | Autonomous story loop — merge, implement, verify, push, plan | `/pipeline` |
+| `skills/pipeline/SKILL.md` | Autonomous story loop — merge, implement, verify, push, optimize, plan | `/pipeline` |
 | `skills/canductor-verify/SKILL.md` | Run quality verification on the current branch | `/canductor-verify` |
-| `skills/audit/SKILL.md` | Codebase health audit — finds drift, dead code, creates fix epic | `/audit` |
+| `skills/audit/SKILL.md` | Codebase health audit — finds drift, dead code, writes to findings.tsv, creates fix epic | `/audit` |
+| `skills/optimize/SKILL.md` | Read findings + task data, update templates/patterns to prevent recurring issues | `/optimize` |
 
 ## Dependency Graph
 
@@ -56,8 +57,9 @@ Stories list which patterns and templates to follow. Patterns reference template
 | File | Purpose |
 |------|---------|
 | `.canductor/config.yaml` | Verification layer definitions + policy |
-| `.canductor/results.tsv` | Verification history log (scores) |
+| `.canductor/results.tsv` | Story-level verification scores |
+| `.canductor/tasks.tsv` | Per-task-type attempt tracking (pipeline data → /optimize reads) |
+| `.canductor/findings.tsv` | Audit findings attributed to templates (audit data → /optimize reads) |
 | `.canductor/learnings.md` | What went wrong during verify and how it was fixed (narrative) |
-| `.canductor/tasks.tsv` | Per-task-type attempt tracking (maps to .claude/ files) |
 
 <!-- pipeline:index-version:3 -->

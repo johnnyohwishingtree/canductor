@@ -316,9 +316,9 @@ if [ -n "$EPIC_LABEL" ] && [ "$EPIC_LABEL" != "null" ]; then
 fi
 ```
 
-### Step 7: Optimize patterns (when queue is empty)
+### Step 7: Optimize templates and patterns (when queue is empty)
 
-Only runs when there are no pending stories left. Analyzes task tracking data and improves the `.canductor/` files that guide implementation.
+Only runs when there are no pending stories left.
 
 ```bash
 PENDING=$(gh issue list --repo johnnyohwishingtree/canductor --label "story" --label "pending" --state open --json number --jq 'length')
@@ -328,94 +328,7 @@ if [ "$PENDING" -gt 0 ]; then
 fi
 ```
 
-If no pending stories, check `.canductor/tasks.tsv` for task types that need optimization:
-
-**Step 7a: Create missing patterns first.**
-
-Read `.canductor/tasks.tsv`. For each task type where `guided_by` is `-` or the file doesn't exist:
-
-1. Check if `.canductor/patterns/<task_type>.md` or `.canductor/templates/<task_type>.md` exists
-2. If NOT, create `.canductor/patterns/<task_type>.md`:
-   a. Find a merged PR that used this task type: look at the `ref` column, then `gh pr list --repo johnnyohwishingtree/canductor --state merged --search "Closes #<ref>" --json number --jq '.[0].number'`
-   b. Read the diff: `gh pr diff <pr_number> --repo johnnyohwishingtree/canductor`
-   c. Write a pattern file that captures: what files were created/modified, what conventions were followed, what the key steps were
-   d. Follow the structure in `.canductor/templates/rubric.md` as a guide for the pattern file format
-3. Also update `.canductor/tasks.tsv` — replace the `-` in `guided_by` with the new file path for all matching rows
-4. Commit the new pattern
-
-**Step 7b: Optimize existing patterns and templates.**
-
-Group `.canductor/tasks.tsv` by `task_type`:
-
-1. **Skip types with avg = 1.0 over 3+ uses** — converged, leave alone
-2. **Focus on types with avg > 1 and 3+ uses**, OR types with **any audit failures** (ref starts with `audit-`) — these need improvement
-3. For each optimization target:
-   a. Read the `guided_by` file (e.g., `.canductor/templates/story.md`)
-   b. Collect ALL failure reasons from the `failure` column for this task type
-   c. Separate failures by source:
-      - **Pipeline failures** (ref is a number like `#42`): the instructions were unclear or incomplete — the agent tried to follow them and got it wrong
-      - **Audit failures** (ref starts with `audit-`): the template didn't require the agent to check for this at all — it's a gap in the acceptance criteria or task list
-
-4. For each failure, determine WHERE in the guided_by file to add the fix:
-
-   **If the failure is "dead export" / "stale reference" / "README drift":**
-   → Add to the **Acceptance Criteria** section of the template. Example:
-   ```
-   Before: - [ ] `pnpm typecheck` passes with zero errors
-   After:  - [ ] `pnpm typecheck` passes with zero errors
-           - [ ] No dead exports — every new export in index.ts is imported somewhere
-           - [ ] All references updated — no stale paths to renamed/moved files
-           - [ ] If CLI commands changed, README.md is updated
-   ```
-
-   **If the failure is "missing tests" / "no error path":**
-   → Add to the **Tasks** section guidance or the test template. Example:
-   ```
-   Before: 2. [test] Create tests for the new module
-   After:  2. [test] Create tests — must include happy path + at least one error/edge case
-   ```
-
-   **If the failure is "oversized module" / "wrong dependency direction":**
-   → Add to the **Tasks** section as an explicit check. Example:
-   ```
-   Add task: N. [module] Verify no module exceeds 500 lines — split if needed
-   ```
-
-   **If the failure is "missing pattern for new task type":**
-   → This is an epic template issue. Add to `.canductor/templates/epic.md`:
-   ```
-   Before: Create 2-4 stories following the story template
-   After:  Create 2-4 stories following the story template.
-           If any story introduces a task type that doesn't have a
-           .canductor/patterns/<type>.md file yet, add a final story
-           to create that pattern from the implementation.
-   ```
-
-5. Make the edits. Be specific — add the exact check or instruction that would have caught the failure. Don't add vague guidance like "be careful about exports." Add: "verify every new export in index.ts is imported by at least one file in cli/ or core/."
-
-6. Commit each template/pattern update separately so regressions can be reverted individually:
-   ```bash
-   git add .canductor/templates/story.md
-   git commit -m "optimize: story template — add dead export and reference checks (from audit findings)"
-   ```
-
-**Step 7c: Check for regressions.**
-
-If a pattern was updated in a previous optimization cycle and the task type's avg attempts went UP (not down), revert that file:
-```bash
-git log --oneline .canductor/patterns/<task_type>.md | head -2
-# If the most recent change was an optimization and attempts increased, revert:
-git checkout HEAD~1 -- .canductor/patterns/<task_type>.md
-git commit -m "revert: pattern optimization for <task_type> made things worse"
-```
-
-After updating patterns, commit and push:
-```bash
-git add .claude/
-git diff --cached --quiet || git commit -m "chore: optimize patterns based on task tracking data" && git push origin master
-```
-
-**Important:** If a previous optimization made things worse (a type's avg went UP after a pattern change), revert that specific file to its previous version using `git log` and `git checkout`.
+If no pending stories, read and follow `.claude/skills/optimize/SKILL.md`. This skill reads `.canductor/findings.tsv` (from audits) and `.canductor/tasks.tsv` (from pipeline runs) and updates the templates/patterns that need improvement.
 
 ### Step 8: Plan next epic (when queue is empty)
 

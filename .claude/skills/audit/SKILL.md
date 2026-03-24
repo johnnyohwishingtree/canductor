@@ -162,44 +162,38 @@ gh issue create --repo "$REPO" \
   --body "<follow .canductor/templates/story.md with Tasks section>"
 ```
 
-## Attribute findings to planning task types
+## Log findings to findings.tsv
 
-Audit findings are symptoms of stories/epics that didn't account for something. Log each finding to `.canductor/tasks.tsv` attributed to the task type that should have prevented it:
+Audit findings go to `.canductor/findings.tsv` — separate from `tasks.tsv` (which tracks pipeline verify attempts). The `/optimize` skill reads both files to improve templates.
 
 ```bash
-[ -f .canductor/tasks.tsv ] || echo -e "task_type\tguided_by\tref\tverify_cycle\tfailure\ttimestamp" > .canductor/tasks.tsv
+[ -f .canductor/findings.tsv ] || echo -e "category\ttemplate\tfinding\tref\ttimestamp" > .canductor/findings.tsv
 ```
 
-| Finding type | Attributed to | Why |
+For each finding, determine the category and which template should have prevented it:
+
+| Finding type | Category | Template |
 |---|---|---|
-| Dead exports | `story` (.canductor/templates/story.md) | Story didn't include cleanup task |
-| Stale references | `story` (.canductor/templates/story.md) | Story didn't require updating references |
-| Untested modules | `story` (.canductor/templates/story.md) | Story didn't include test task |
-| Missing patterns | `epic` (.canductor/templates/epic.md) | Epic introduced new task types without patterns |
-| Architecture violations | `story` (.canductor/templates/story.md) | Story allowed wrong dependency direction |
-| README drift | `story` (.canductor/templates/story.md) | Story changed CLI without updating README |
+| Dead exports | `dead-code` | `.canductor/templates/story.md` |
+| Stale references | `stale-ref` | `.canductor/templates/story.md` |
+| Untested modules | `untested` | `.canductor/templates/story.md` |
+| Missing patterns | `missing-pattern` | `.canductor/templates/epic.md` |
+| Architecture violations | `architecture` | `.canductor/templates/story.md` |
+| README drift | `readme-drift` | `.canductor/templates/story.md` |
+| Config inconsistency | `config` | `.canductor/templates/story.md` |
 
-For each finding, log it:
+Log each finding:
 ```bash
-echo -e "story\t.canductor/templates/story.md\taudit-$DATE\t1\t<finding summary>\t$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> .canductor/tasks.tsv
+echo -e "<category>\t<template>\t<finding summary>\taudit-$DATE\t$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> .canductor/findings.tsv
 ```
 
-This means the `story` and `epic` task types will accumulate failures from audits. When the pipeline's optimization step (Step 7) runs, it will see:
-
-```
-story: avg 1.3 cycles, 15 uses — 4 audit failures
-  → Failures: "dead exports", "stale references", "missing tests", "README drift"
-  → Optimization: update .canductor/templates/story.md acceptance criteria
-    to require reference checks, export verification, README updates
-```
-
-The planning templates get better, future stories prevent the issues the audit found.
-
-Commit the updated tasks.tsv along with the audit epic:
+Commit findings along with the audit epic:
 ```bash
-git add .canductor/tasks.tsv
-git diff --cached --quiet || git commit -m "chore: log audit findings to task tracking" && git push origin master
+git add .canductor/findings.tsv
+git diff --cached --quiet || git commit -m "chore: log audit findings" && git push origin master
 ```
+
+The `/optimize` skill reads these findings and updates the templates to prevent them from recurring.
 
 ## What NOT to flag
 
