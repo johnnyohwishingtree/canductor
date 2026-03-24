@@ -125,9 +125,9 @@ Rules in `.claude/rules/` are auto-loaded into every Claude session. See `.claud
 Current baseline quality score: 99/100
 
 ### Recent verification results:
-- 34: score=99 pending (Verified 34)
-- 38: score=99 pending (Verified 38)
-- 39: score=99 pending (Verified 39)
-- 40: score=99 pending (Verified 40)
 - 30: score=99 pending (Verified 30)
+- 49: score=99 merged (Verified 49)
+- 50: score=99 merged (Verified 50)
+- guard-ref: score=38 pending (Verified guard-ref)
+- 51: score=98 merged (Verified 51)
 <!-- canductor:end -->
