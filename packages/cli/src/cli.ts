@@ -38,6 +38,7 @@ import {
   generateReport,
   listStaleBranches,
   deleteBranches,
+  validateConfig,
 } from '@canductor/core';
 import type { AgentReviewResult } from '@canductor/core';
 import { writeFileSync, existsSync, mkdirSync } from 'node:fs';
@@ -69,6 +70,7 @@ Usage:
   canductor suggest                          Suggest rule improvements based on history
   canductor init                             Create starter config
   canductor report [ref] [--json]             Generate markdown quality summary
+  canductor config-check [--json]             Validate config file and policy expressions
   canductor clean [--force]                  Remove merged canductor branches
   canductor skill-lint                       Validate SKILL.md frontmatter
   canductor help                             Show this message
@@ -607,6 +609,37 @@ function cmdSkillLint(): void {
   }
 }
 
+function cmdConfigCheck(): void {
+  const jsonMode = args.includes('--json');
+  const result = validateConfig(repoRoot);
+
+  if (jsonMode) {
+    console.log(JSON.stringify(result, null, 2));
+  } else {
+    if (result.errors.length === 0 && result.warnings.length === 0) {
+      console.log('Config is valid. No errors or warnings.');
+    } else {
+      for (const issue of result.errors) {
+        const pathStr = issue.path ? ` (${issue.path})` : '';
+        console.log(`ERROR${pathStr}: ${issue.message}`);
+      }
+      for (const issue of result.warnings) {
+        const pathStr = issue.path ? ` (${issue.path})` : '';
+        console.log(`WARNING${pathStr}: ${issue.message}`);
+      }
+
+      const summary = [];
+      if (result.errors.length > 0) summary.push(`${result.errors.length} error(s)`);
+      if (result.warnings.length > 0) summary.push(`${result.warnings.length} warning(s)`);
+      console.log(`\n${summary.join(', ')}`);
+    }
+  }
+
+  if (!result.valid) {
+    process.exit(1);
+  }
+}
+
 async function main(): Promise<void> {
   switch (command) {
     case 'verify':
@@ -647,6 +680,9 @@ async function main(): Promise<void> {
       break;
     case 'report':
       cmdReport();
+      break;
+    case 'config-check':
+      cmdConfigCheck();
       break;
     case 'clean':
       cmdClean();
