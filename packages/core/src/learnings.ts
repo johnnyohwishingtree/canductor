@@ -84,6 +84,8 @@ export function readLearnings(repoRoot: string): Learning[] {
   if (!existsSync(fullPath)) return [];
 
   const content = readFileSync(fullPath, 'utf-8');
+  if (!content.trim()) return [];
+
   const entries = content.split(/(?=### #)/);
   const learnings: Learning[] = [];
 
