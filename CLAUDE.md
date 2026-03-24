@@ -25,19 +25,22 @@ packages/
 ├── cli/            # CLI tool (canductor init/verify/score/history/context/inject/suggest/diff/status/trend)
 └── github-action/  # GitHub Action wrapper (optional, for CI-only use)
 
-.canductor/
-├── config.yaml         # What "good" means (layers + policy)
-└── results.tsv         # Verification history (the "training data")
+.canductor/ (read-write — pipeline creates and optimizes these)
+├── config.yaml         # Verification layer definitions + policy
+├── results.tsv         # Story-level verification scores
+├── tasks.tsv           # Task-type attempt tracking (the learning signal)
+├── learnings.md        # What went wrong and how it was fixed
+├── templates/          # File structure definitions (task types)
+├── patterns/           # Multi-file change recipes (task types)
+└── rubrics/            # Quality evaluation criteria
 
-.claude/
+.claude/ (read-only — pipeline never edits these)
 ├── skills/
-│   ├── pipeline/              # /pipeline — the autonomous story loop (scheduled task reads this)
-│   └── canductor-verify/      # /canductor-verify — run quality scoring manually
-├── templates/                 # Artifact structure definitions (epic, story, module, test, etc.)
-├── rubrics/                   # Quality evaluation criteria (code, test, skill quality)
-├── patterns/                  # Multi-file change recipes (new layer, CLI command, rubric, etc.)
+│   ├── pipeline/              # /pipeline — the autonomous story loop
+│   └── canductor-verify/      # /canductor-verify — manual quality scoring
+├── rules/                     # Always-on constraints (auto-loaded every session)
 ├── hooks/                     # PostToolUse auto-typecheck, Stop session logging
-└── settings.json              # Hook configuration
+└── settings.json              # Permissions + hook configuration
 ```
 
 ## Run Commands

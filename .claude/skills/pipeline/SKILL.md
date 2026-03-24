@@ -81,7 +81,7 @@ Read the issue body and implement it. The story body is your primary guide — i
 
 **Token-efficient implementation order:**
 1. Read the story's **Tasks** section — note each task type and what it asks you to do.
-2. For each task type, read the corresponding `.claude/` file (e.g., `[module]` → read `.canductor/templates/module.md`).
+2. For each task type, read the corresponding `.canductor/` file (e.g., `[module]` → read `.canductor/templates/module.md`).
 3. Read the story's **Context** section — these are the ONLY additional files you need to read. Do NOT explore the codebase beyond what's listed.
 4. Read the story's **Key Types** section — use these inline types instead of reading `types.ts`.
 5. If the story doesn't have a Tasks section (older stories), fall back to reading the files listed in "Files to Create/Modify" plus the templates/patterns below.
@@ -109,19 +109,24 @@ Only read a pattern/template if the story references it or if you're doing that 
 - Every new module needs tests
 - Dependencies flow: cli -> core. Never the reverse.
 
-### Step 4b: Self-update check
+### Step 4b: Check if pipeline changes are needed
 
 After implementing, check if your changes affect the pipeline itself:
-- **Did you add or change CLI flags?** Update the `canductor verify` invocations in this file (`.claude/skills/pipeline/SKILL.md`) to use them.
-- **Did you add new CLI commands?** Consider if they should be part of the pipeline loop (e.g., a new `canductor lint` command might belong in the verify step).
-- **Did you change CLAUDE.md structure?** Make sure the pipeline skill's references to CLAUDE.md sections still work.
-- **Did you change the config.yaml schema?** Update any hardcoded references in this file.
-- **Did you change the results.tsv format?** Update the results log commit step.
-- **Did you add/remove/rename any `.claude/` files?** Update `.claude/index.md` to reflect the change.
+- **Did you add or change CLI flags?** Note it.
+- **Did you change the config.yaml schema?** Note it.
+- **Did you change the results.tsv or tasks.tsv format?** Note it.
 
-If any updates are needed, make them now — include the skill file changes in your commit. The pipeline improves itself by keeping its own instructions current with the codebase it builds.
+If any `.claude/` files (skills, rules) need updating, **do NOT edit them.** Instead, create a GitHub issue:
+```bash
+gh issue create --repo johnnyohwishingtree/canductor \
+  --title "Pipeline update needed: <what changed>" \
+  --label "pipeline-update" \
+  --body "Changes in #$NUMBER affect the pipeline. Suggested updates: <details>"
+```
 
-If you created or modified any skill files (`.claude/skills/**/*.md`), also evaluate them against `.canductor/rubrics/skill-quality.md` before proceeding. Fix any issues the rubric identifies — skills are pipeline code, they need the same quality bar.
+`.claude/` files are read-only for the pipeline. Only humans edit skills and rules.
+
+You CAN edit `.canductor/` files (templates, patterns, rubrics, index) — those are pipeline-optimizable.
 
 ### Step 5: Verify and fix loop
 
@@ -189,7 +194,7 @@ LEARNING
 
 # Log to tasks.tsv (structured — which task type caused the failure)
 # task_type is from the [brackets] in the Tasks section
-# guided_by is the .claude/ file that task type maps to
+# guided_by is the .canductor/ file that task type maps to
 echo -e "<task_type>\t<guided_by>\t#$NUMBER\t$ATTEMPT\t<failure summary>\t$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> .canductor/tasks.tsv
 ```
 
@@ -313,7 +318,7 @@ fi
 
 ### Step 7: Optimize patterns (when queue is empty)
 
-Only runs when there are no pending stories left. Analyzes task tracking data and improves the `.claude/` files that guide implementation.
+Only runs when there are no pending stories left. Analyzes task tracking data and improves the `.canductor/` files that guide implementation.
 
 ```bash
 PENDING=$(gh issue list --repo johnnyohwishingtree/canductor --label "story" --label "pending" --state open --json number --jq 'length')
@@ -325,19 +330,40 @@ fi
 
 If no pending stories, check `.canductor/tasks.tsv` for task types that need optimization:
 
-1. Read `.canductor/tasks.tsv` and group by `task_type`
-2. For each task type, compute average verify cycles across all stories
-3. **Skip types with avg = 1.0 over 3+ uses** — these are converged, the pattern is good
-4. **Focus on types with avg > 1** and 3+ uses — these need pattern improvement
-5. For each optimization target:
+**Step 7a: Create missing patterns first.**
+
+Read `.canductor/tasks.tsv`. For each task type where `guided_by` is `-` or the file doesn't exist:
+
+1. Check if `.canductor/patterns/<task_type>.md` or `.canductor/templates/<task_type>.md` exists
+2. If NOT, create `.canductor/patterns/<task_type>.md`:
+   a. Find a merged PR that used this task type: look at the `ref` column, then `gh pr list --repo johnnyohwishingtree/canductor --state merged --search "Closes #<ref>" --json number --jq '.[0].number'`
+   b. Read the diff: `gh pr diff <pr_number> --repo johnnyohwishingtree/canductor`
+   c. Write a pattern file that captures: what files were created/modified, what conventions were followed, what the key steps were
+   d. Follow the structure in `.canductor/templates/rubric.md` as a guide for the pattern file format
+3. Also update `.canductor/tasks.tsv` — replace the `-` in `guided_by` with the new file path for all matching rows
+4. Commit the new pattern
+
+**Step 7b: Optimize existing patterns.**
+
+Group `.canductor/tasks.tsv` by `task_type`:
+
+1. **Skip types with avg = 1.0 over 3+ uses** — converged, leave alone
+2. **Focus on types with avg > 1** and 3+ uses — these need improvement
+3. For each optimization target:
    a. Read the `guided_by` file (e.g., `.canductor/templates/test.md`)
-   b. Read the failure reasons from the `failure` column
-   c. Update the guided_by file to explicitly address the failure patterns
+   b. Read ALL failure reasons from the `failure` column for this task type
+   c. Update the guided_by file to explicitly address those failure patterns — add specific instructions, examples, or warnings about the common mistakes
    d. Commit the change
-6. **For new task types** (appeared in tasks.tsv but no `.claude/` file exists):
-   a. Look at the successful implementation diff for that task type
-   b. Create a `.canductor/patterns/<task_type>.md` capturing the approach
-   c. Commit the new pattern
+
+**Step 7c: Check for regressions.**
+
+If a pattern was updated in a previous optimization cycle and the task type's avg attempts went UP (not down), revert that file:
+```bash
+git log --oneline .canductor/patterns/<task_type>.md | head -2
+# If the most recent change was an optimization and attempts increased, revert:
+git checkout HEAD~1 -- .canductor/patterns/<task_type>.md
+git commit -m "revert: pattern optimization for <task_type> made things worse"
+```
 
 After updating patterns, commit and push:
 ```bash

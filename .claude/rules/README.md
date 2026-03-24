@@ -2,14 +2,16 @@
 
 Rules are always-on constraints. Claude Code auto-loads every `.md` file in this directory into every session — you don't need to reference them explicitly.
 
-## How rules fit in the `.claude/` system
+## How rules fit in the system
 
 ```
-rules/       → "always do X / never do Y" — loaded automatically, every session
-templates/   → "a single file should look like this" — read on demand when creating files
-patterns/    → "a multi-file change goes in this order" — read on demand during implementation
-rubrics/     → "evaluate quality against these criteria" — read on demand during review
+.claude/rules/          → "always do X / never do Y" — loaded automatically, every session (read-only)
+.canductor/templates/   → "a single file should look like this" — read on demand (read-write)
+.canductor/patterns/    → "a multi-file change goes in this order" — read on demand (read-write)
+.canductor/rubrics/     → "evaluate quality against these criteria" — read on demand (read-write)
 ```
+
+Rules live in `.claude/` (read-only, human-edited). Templates, patterns, and rubrics live in `.canductor/` (read-write, pipeline-optimized).
 
 **Rules** constrain behavior. **Templates** define structure. **Patterns** define process. **Rubrics** define quality.
 

@@ -14,7 +14,7 @@
 
 ## Tasks
 
-Each task references the .claude/ file that guides its implementation by name.
+Each task references a `.canductor/` file that guides its implementation by name.
 The pipeline tracks verify attempts per task type to optimize these files over time.
 
 1. [module] Create `<path/to/file.ts>` — <what it does>
@@ -23,6 +23,12 @@ The pipeline tracks verify attempts per task type to optimize these files over t
 
 Task type names map to `.canductor/patterns/<name>.md` or `.canductor/templates/<name>.md`.
 If no matching file exists, the task type is new — the pipeline will create a pattern after the story ships.
+
+**Task type guidelines:**
+- Each task type should map to ONE `.canductor/` file. Don't create types like `[update-exports]` — barrel exports are already part of `[module]`.
+- Use existing types when possible: `module`, `test`, `new-cli-command`, `new-layer`, `new-rubric`, `new-core-module`, `extend-results`.
+- Only create a new type when the work genuinely follows a different pattern than existing types.
+- Never use `.claude/` file names (rules, skills) as task types — those are read-only.
 
 ## Context (read these before implementing)
 

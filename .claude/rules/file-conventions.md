@@ -1,28 +1,34 @@
 # File Conventions
 
-## The `.claude/` directory
+## The `.claude/` directory (read-only)
 
-All Claude Code pipeline artifacts live under `.claude/`. This is the universal namespace:
+Instructions that control Claude's behavior. The pipeline reads these but never edits them autonomously. Changes require human approval.
 
 ```
 .claude/
 ├── skills/        # Autonomous workflows (pipeline, canductor-verify)
 ├── rules/         # Always-on constraints (this directory)
-├── templates/     # Single-file structure definitions
-├── rubrics/       # Quality evaluation criteria
-├── patterns/      # Multi-file change recipes
+├── settings.json  # Permissions + hook configuration
 └── index.md       # System manifest — read this first
 ```
 
-## The `.canductor/` directory
+## The `.canductor/` directory (read-write)
 
-Only canductor-the-tool's **runtime data** lives here — not templates, rubrics, or patterns:
+Everything the pipeline can create and modify autonomously:
 
 ```
 .canductor/
 ├── config.yaml    # Verification layer definitions + policy
-└── results.tsv    # Verification history log
+├── results.tsv    # Story-level verification scores
+├── tasks.tsv      # Task-type attempt tracking (the learning signal)
+├── learnings.md   # What went wrong and how it was fixed
+├── templates/     # Single-file structure definitions (task types live here)
+├── patterns/      # Multi-file change recipes (task types live here)
+├── rubrics/       # Quality evaluation criteria
+└── baselines/     # Screenshot baselines
 ```
+
+Task types in story bodies (e.g., `[module]`, `[new-cli-command]`) map to files in `.canductor/patterns/` or `.canductor/templates/` by name.
 
 ## Source file conventions
 
