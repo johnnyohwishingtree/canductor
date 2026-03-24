@@ -479,6 +479,7 @@ describe('runDeterministicLayer timeout', () => {
     expect(result.score).toBe(0);
     expect(result.errors).toContain('timed out');
     expect(result.errors).toContain('100');
+    expect(result.timed_out).toBe(true);
   });
 
   it('passes normally when command finishes within timeout', () => {
@@ -509,5 +510,49 @@ describe('runDeterministicLayer timeout', () => {
 
     expect(result.pass).toBe(true);
     expect(result.score).toBe(100);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// runScreenshotDiffLayer — timeout
+// ---------------------------------------------------------------------------
+describe('runScreenshotDiffLayer timeout', () => {
+  it('returns timeout error when capture command exceeds timeout_ms', () => {
+    const baselineDir = join(TEST_DIR, 'baseline');
+    mkdirSync(baselineDir, { recursive: true });
+
+    const layer: LayerConfig = {
+      name: 'visual-slow',
+      type: 'screenshot-diff',
+      baseline: baselineDir,
+      capture: 'sleep 10',
+      weight: 1,
+      timeout_ms: 100,
+    };
+
+    const result = runScreenshotDiffLayer(layer);
+
+    expect(result.pass).toBe(false);
+    expect(result.score).toBe(0);
+    expect(result.errors).toContain('timed out');
+    expect(result.errors).toContain('100');
+    expect(result.timed_out).toBe(true);
+  });
+
+  it('passes when capture command finishes within timeout', () => {
+    const layer: LayerConfig = {
+      name: 'visual-fast',
+      type: 'screenshot-diff',
+      baseline: join(TEST_DIR, 'nonexistent'),
+      capture: 'echo done',
+      weight: 1,
+      timeout_ms: 10000,
+    };
+
+    const result = runScreenshotDiffLayer(layer);
+
+    // No baseline → first-run pass
+    expect(result.pass).toBe(true);
+    expect(result.timed_out).toBeUndefined();
   });
 });
