@@ -65,6 +65,14 @@ export interface CanductorConfig {
   baseline?: number;
 }
 
+/** Summary info for a configured verification layer. */
+export interface LayerInfo {
+  name: string;
+  type: LayerConfig['type'];
+  weight: number;
+  detail: string;
+}
+
 /** Result of running a single verification layer. */
 export interface LayerResult {
   name: string;

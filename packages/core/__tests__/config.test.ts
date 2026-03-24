@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { loadConfig, writeConfigBaseline, validateConfig } from '../src/config.js';
+import { loadConfig, writeConfigBaseline, validateConfig, listLayers } from '../src/config.js';
 
 let tempDir: string;
 
@@ -465,5 +465,88 @@ policy:
     const result = validateConfig(tempDir);
     expect(result.valid).toBe(true);
     expect(result.errors).toHaveLength(0);
+  });
+});
+
+describe('listLayers', () => {
+  it('lists layers with correct type, weight, and detail', () => {
+    writeConfig(`version: 1
+layers:
+  tests:
+    name: tests
+    type: deterministic
+    run: "npm test"
+    weight: 0.5
+  review:
+    name: review
+    type: agent-review
+    rubric: "quality.md"
+    weight: 0.3
+  guard:
+    name: guard
+    type: guardrail
+    patterns:
+      - pattern: "eval"
+        message: "No eval"
+      - pattern: "debugger"
+        message: "No debugger"
+    weight: 0.2
+policy:
+  auto_merge: "all_pass"
+  human_review: "false"
+  block: "any_fail"
+`);
+    const config = loadConfig(tempDir);
+    const layers = listLayers(config);
+
+    expect(layers).toHaveLength(3);
+
+    expect(layers[0].name).toBe('tests');
+    expect(layers[0].type).toBe('deterministic');
+    expect(layers[0].weight).toBe(0.5);
+    expect(layers[0].detail).toBe('run: npm test');
+
+    expect(layers[1].name).toBe('review');
+    expect(layers[1].type).toBe('agent-review');
+    expect(layers[1].weight).toBe(0.3);
+    expect(layers[1].detail).toBe('rubric: quality.md');
+
+    expect(layers[2].name).toBe('guard');
+    expect(layers[2].type).toBe('guardrail');
+    expect(layers[2].weight).toBe(0.2);
+    expect(layers[2].detail).toBe('2 pattern(s)');
+  });
+
+  it('returns empty array for config with no layers', () => {
+    writeConfig(`version: 1
+layers: {}
+policy:
+  auto_merge: "all_pass"
+  human_review: "false"
+  block: "any_fail"
+`);
+    const config = loadConfig(tempDir);
+    const layers = listLayers(config);
+    expect(layers).toHaveLength(0);
+  });
+
+  it('shows screenshot-diff baseline detail', () => {
+    writeConfig(`version: 1
+layers:
+  visual:
+    name: visual
+    type: screenshot-diff
+    capture: "npm run screenshot"
+    baseline: "screenshots/"
+    threshold: 5
+    weight: 0.8
+policy:
+  auto_merge: "all_pass"
+  human_review: "false"
+  block: "any_fail"
+`);
+    const config = loadConfig(tempDir);
+    const layers = listLayers(config);
+    expect(layers[0].detail).toBe('baseline: screenshots/');
   });
 });

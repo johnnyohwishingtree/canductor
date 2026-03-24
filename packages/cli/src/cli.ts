@@ -39,6 +39,7 @@ import {
   listStaleBranches,
   deleteBranches,
   validateConfig,
+  listLayers,
 } from '@canductor/core';
 import type { AgentReviewResult } from '@canductor/core';
 import { writeFileSync, existsSync, mkdirSync } from 'node:fs';
@@ -70,6 +71,7 @@ Usage:
   canductor suggest                          Suggest rule improvements based on history
   canductor init                             Create starter config
   canductor report [ref] [--json]             Generate markdown quality summary
+  canductor layers [--json]                   List configured verification layers
   canductor config-check [--json]             Validate config file and policy expressions
   canductor clean [--force]                  Remove merged canductor branches
   canductor skill-lint                       Validate SKILL.md frontmatter
@@ -609,6 +611,38 @@ function cmdSkillLint(): void {
   }
 }
 
+function cmdLayers(): void {
+  const jsonMode = args.includes('--json');
+  const config = loadConfig(repoRoot);
+  const layers = listLayers(config);
+
+  if (layers.length === 0) {
+    if (jsonMode) {
+      console.log(JSON.stringify([]));
+    } else {
+      console.log('No layers configured.');
+    }
+    return;
+  }
+
+  if (jsonMode) {
+    console.log(JSON.stringify(layers, null, 2));
+    return;
+  }
+
+  console.log('Name'.padEnd(20) + 'Type'.padEnd(20) + 'Weight'.padEnd(10) + 'Detail');
+  console.log('-'.repeat(70));
+  for (const layer of layers) {
+    console.log(
+      `${layer.name.padEnd(20)}${layer.type.padEnd(20)}${String(layer.weight).padEnd(10)}${layer.detail}`
+    );
+  }
+
+  const totalWeight = layers.reduce((sum, l) => sum + l.weight, 0);
+  console.log('-'.repeat(70));
+  console.log(`${''.padEnd(40)}${totalWeight.toFixed(1)}`);
+}
+
 function cmdConfigCheck(): void {
   const jsonMode = args.includes('--json');
   const result = validateConfig(repoRoot);
@@ -680,6 +714,9 @@ async function main(): Promise<void> {
       break;
     case 'report':
       cmdReport();
+      break;
+    case 'layers':
+      cmdLayers();
       break;
     case 'config-check':
       cmdConfigCheck();
