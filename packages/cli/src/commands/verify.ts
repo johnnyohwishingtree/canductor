@@ -11,7 +11,7 @@ import {
   parseReviewJson,
   runLayer,
 } from '@canductor/core';
-import type { AgentReviewResult } from '@canductor/core';
+import type { AgentReviewResult, VerifyOptions } from '@canductor/core';
 
 /**
  * Run all verification layers, log result, and print decision.
@@ -66,7 +66,19 @@ export async function cmdVerify(args: string[], repoRoot: string): Promise<void>
     }
   }
 
-  const result = await verify(ref, config, selfReviewResults, repoRoot);
+  const verboseMode = args.includes('--verbose');
+  const verboseOutput: string[] = [];
+  const options: VerifyOptions | undefined = verboseMode
+    ? {
+        verbose: true,
+        logger: (msg: string) => {
+          console.log(msg);
+          verboseOutput.push(msg);
+        },
+      }
+    : undefined;
+
+  const result = await verify(ref, config, selfReviewResults, repoRoot, options);
 
   let threshold: number | null = null;
   if (exitCodeArg) {
@@ -97,6 +109,9 @@ export async function cmdVerify(args: string[], repoRoot: string): Promise<void>
     };
     if (threshold !== null) {
       output.threshold = threshold;
+    }
+    if (verboseMode) {
+      output.verbose_output = verboseOutput;
     }
     console.log(JSON.stringify(output));
   } else {
