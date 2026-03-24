@@ -1,28 +1,10 @@
 #!/usr/bin/env node
 
 /**
- * canductor CLI
- *
- * Usage:
- *   canductor verify [ref]        — Run all verification layers, log result
- *   canductor score [ref]         — Run layers and print composite score
- *   canductor history             — Show results history
- *   canductor context             — Generate quality context for agent prompts
- *   canductor inject <target>     — Inject quality context into a file (e.g. CLAUDE.md)
- *   canductor suggest             — Suggest rule improvements based on history
- *   canductor init                — Create a starter .canductor/config.yaml
+ * canductor CLI — quality verification for agentic output
  */
 
-import { cmdVerify, cmdScore, cmdLayerTest } from './commands/verify.js';
-import {
-  cmdStatus, cmdTrend, cmdDiff, cmdBaseline,
-  cmdHistory, cmdInsights, cmdTasks, cmdReport,
-} from './commands/analytics.js';
-import {
-  cmdInit, cmdInject, cmdSuggest, cmdContext,
-  cmdResultUpdate, cmdConfigCheck, cmdClean,
-  cmdSkillLint, cmdLayers,
-} from './commands/utility.js';
+import { commands } from './commands/index.js';
 
 const args = process.argv.slice(2);
 const command = args[0];
@@ -62,78 +44,19 @@ Usage:
 }
 
 async function main(): Promise<void> {
-  switch (command) {
-    case 'verify':
-      await cmdVerify(args, repoRoot);
-      break;
-    case 'score':
-      await cmdScore(args, repoRoot);
-      break;
-    case 'status':
-      cmdStatus(args, repoRoot);
-      break;
-    case 'trend':
-      cmdTrend(args, repoRoot);
-      break;
-    case 'history':
-      cmdHistory(args, repoRoot);
-      break;
-    case 'diff':
-      cmdDiff(args, repoRoot);
-      break;
-    case 'baseline':
-      cmdBaseline(args, repoRoot);
-      break;
-    case 'result-update':
-      cmdResultUpdate(args, repoRoot);
-      break;
-    case 'context':
-      cmdContext(args, repoRoot);
-      break;
-    case 'inject':
-      cmdInject(args, repoRoot);
-      break;
-    case 'suggest':
-      cmdSuggest(args, repoRoot);
-      break;
-    case 'init':
-      await cmdInit(args, repoRoot);
-      break;
-    case 'report':
-      cmdReport(args, repoRoot);
-      break;
-    case 'layer-test':
-      await cmdLayerTest(args, repoRoot);
-      break;
-    case 'layers':
-      cmdLayers(args, repoRoot);
-      break;
-    case 'config-check':
-      cmdConfigCheck(args, repoRoot);
-      break;
-    case 'clean':
-      cmdClean(args, repoRoot);
-      break;
-    case 'tasks':
-      cmdTasks(args, repoRoot);
-      break;
-    case 'insights':
-      cmdInsights(args, repoRoot);
-      break;
-    case 'skill-lint':
-      cmdSkillLint(args, repoRoot);
-      break;
-    case 'help':
-    case '--help':
-    case '-h':
-    case undefined:
-      printUsage();
-      break;
-    default:
-      console.error(`Unknown command: ${command}`);
-      printUsage();
-      process.exit(1);
+  if (!command || command === 'help' || command === '--help' || command === '-h') {
+    printUsage();
+    return;
   }
+
+  const handler = commands.get(command);
+  if (!handler) {
+    console.error(`Unknown command: ${command}`);
+    printUsage();
+    process.exit(1);
+  }
+
+  await handler(args, repoRoot);
 }
 
 main().catch(err => {
