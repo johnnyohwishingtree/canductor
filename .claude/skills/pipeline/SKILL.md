@@ -296,6 +296,21 @@ git add .canductor/results.tsv
 git diff --cached --quiet || git commit -m "chore: log canductor result for #$NUMBER" && git push origin master
 ```
 
+Check if the story's epic is now complete — if all stories in the epic are closed, close the epic:
+```bash
+EPIC_LABEL=$(gh issue view $NUMBER --repo johnnyohwishingtree/canductor --json labels --jq '[.labels[].name | select(startswith("epic:"))] | .[0]' 2>/dev/null)
+if [ -n "$EPIC_LABEL" ] && [ "$EPIC_LABEL" != "null" ]; then
+  OPEN_STORIES=$(gh issue list --repo johnnyohwishingtree/canductor --label "story" --state open --json labels --jq "[.[] | select(.labels | map(.name) | any(. == \"$EPIC_LABEL\"))] | length")
+  if [ "$OPEN_STORIES" -eq 0 ]; then
+    EPIC_NUMBER=$(gh issue list --repo johnnyohwishingtree/canductor --label "epic,$EPIC_LABEL" --state open --json number --jq '.[0].number' 2>/dev/null)
+    if [ -n "$EPIC_NUMBER" ] && [ "$EPIC_NUMBER" != "null" ]; then
+      gh issue close "$EPIC_NUMBER" --repo johnnyohwishingtree/canductor \
+        --comment "All stories completed. Epic closed automatically by pipeline."
+    fi
+  fi
+fi
+```
+
 ### Step 7: Optimize patterns (when queue is empty)
 
 Only runs when there are no pending stories left. Analyzes task tracking data and improves the `.claude/` files that guide implementation.
