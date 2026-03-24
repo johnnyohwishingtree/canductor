@@ -17,6 +17,7 @@ Usage:
   canductor verify [ref]                     Run all layers, log result, print decision
   canductor verify [ref] --self-review       Output review prompt for agent-review layers (no API key needed)
   canductor verify [ref] --review-json <j>   Use pre-evaluated review JSON for agent-review layers
+  canductor verify [ref] --verbose            Show full layer output during verification
   canductor verify [ref] --exit-code=N       Exit 1 if score < N (use "auto" for baseline)
   canductor score [ref]                      Run layers, print composite score only
   canductor status [--json]                   Show pipeline health overview

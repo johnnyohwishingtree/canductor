@@ -207,6 +207,30 @@ policy:
     expect(parsed).toHaveProperty('threshold', 101);
     expect(parsed).toHaveProperty('passed', false);
   });
+
+  it('--verbose shows layer output in stdout', () => {
+    const { stdout, exitCode } = runCli('verify test-ref --verbose', verifyDir);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('[echo_test]');
+    expect(stdout).toContain('ok');
+  });
+
+  it('--verbose --json includes verbose_output array', () => {
+    const { stdout, exitCode } = runCli('verify test-ref --verbose --json', verifyDir);
+    expect(exitCode).toBe(0);
+    const parsed = JSON.parse(stdout.trim().split('\n').pop()!);
+    expect(parsed).toHaveProperty('verbose_output');
+    expect(Array.isArray(parsed.verbose_output)).toBe(true);
+    expect(parsed.verbose_output.length).toBeGreaterThan(0);
+    expect(parsed.verbose_output.some((m: string) => m.includes('ok'))).toBe(true);
+  });
+
+  it('without --verbose does not include verbose_output in JSON', () => {
+    const { stdout, exitCode } = runCli('verify test-ref --json', verifyDir);
+    expect(exitCode).toBe(0);
+    const parsed = JSON.parse(stdout.trim());
+    expect(parsed).not.toHaveProperty('verbose_output');
+  });
 });
 
 describe('canductor history', () => {
