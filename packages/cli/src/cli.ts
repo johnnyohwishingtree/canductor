@@ -40,6 +40,8 @@ Usage:
   canductor insights [--json]                 Show trajectory, correlations, and recommendations
   canductor tasks                             Show task type performance
   canductor health [--json]                   Show unified pipeline health view
+  canductor resolve <index>                  Mark a finding as resolved (1-based index)
+  canductor resolve --all                    Mark all findings as resolved
   canductor skill-lint                       Validate SKILL.md frontmatter
   canductor help                             Show this message
 `);

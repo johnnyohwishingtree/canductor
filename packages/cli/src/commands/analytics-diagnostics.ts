@@ -128,15 +128,19 @@ export function cmdHealth(args: string[], repoRoot: string): void {
   const jsonMode = args.includes('--json');
   const report = runHealthCheck(repoRoot);
 
+  const activeFindings = report.findings.filter(f => !f.resolved);
+  const resolvedFindings = report.findings.filter(f => f.resolved);
+
   if (jsonMode) {
-    console.log(JSON.stringify(report, null, 2));
+    const jsonOutput = { ...report, resolvedFindings: resolvedFindings.length };
+    console.log(JSON.stringify(jsonOutput, null, 2));
     return;
   }
 
   const issueCount =
     report.configValidation.errors.length +
     report.staleBranches.length +
-    report.findings.length;
+    activeFindings.length;
 
   if (issueCount === 0) {
     console.log('Pipeline healthy');
@@ -206,8 +210,8 @@ export function cmdHealth(args: string[], repoRoot: string): void {
   if (report.findings.length === 0) {
     console.log('  No audit findings');
   } else {
-    console.log(`  ${report.findings.length} finding(s)`);
-    for (const f of report.findings) {
+    console.log(`  ${activeFindings.length} active, ${resolvedFindings.length} resolved`);
+    for (const f of activeFindings) {
       console.log(`    [${f.category}] ${f.finding}`);
     }
   }

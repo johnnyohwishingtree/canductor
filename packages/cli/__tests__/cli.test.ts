@@ -1116,6 +1116,107 @@ describe('canductor clean', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// canductor resolve
+// ---------------------------------------------------------------------------
+describe('canductor resolve', () => {
+  let resolveDir: string;
+
+  beforeEach(() => {
+    resolveDir = join(tmpdir(), `canductor-resolve-test-${Date.now()}`);
+    mkdirSync(resolveDir, { recursive: true });
+    setupConfig(resolveDir);
+    const findingsHeader = 'category\ttemplate\tfinding\tref\ttimestamp';
+    const row1 = 'drift\tmodule.md\tMissing export\t#100\t2026-01-01T00:00:00Z';
+    const row2 = 'dead-code\tmodule.md\tUnused function\t#101\t2026-01-02T00:00:00Z';
+    writeFileSync(
+      join(resolveDir, '.canductor/findings.tsv'),
+      [findingsHeader, row1, row2].join('\n') + '\n'
+    );
+  });
+
+  afterEach(() => {
+    rmSync(resolveDir, { recursive: true, force: true });
+  });
+
+  it('resolves a specific finding by 1-based index', () => {
+    const { stdout, exitCode } = runCli('resolve 1', resolveDir);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('Resolved finding 1');
+
+    const content = readFileSync(join(resolveDir, '.canductor/findings.tsv'), 'utf-8');
+    const lines = content.trim().split('\n');
+    expect(lines[1].split('\t')[5]).toBe('true');
+    expect(lines[2].split('\t')[5] || '').not.toBe('true');
+  });
+
+  it('resolves all findings with --all flag', () => {
+    const { stdout, exitCode } = runCli('resolve --all', resolveDir);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('Resolved all 2 finding(s)');
+
+    const content = readFileSync(join(resolveDir, '.canductor/findings.tsv'), 'utf-8');
+    const lines = content.trim().split('\n');
+    expect(lines[1].split('\t')[5]).toBe('true');
+    expect(lines[2].split('\t')[5]).toBe('true');
+  });
+
+  it('shows usage and exits 1 with no arguments', () => {
+    const { stdout, exitCode } = runCli('resolve', resolveDir);
+    expect(exitCode).toBe(1);
+    expect(stdout).toContain('Usage');
+  });
+
+  it('shows error for out-of-range index', () => {
+    const { stdout, exitCode } = runCli('resolve 999', resolveDir);
+    expect(exitCode).toBe(1);
+    expect(stdout).toContain('Invalid index');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// canductor health — updated findings display
+// ---------------------------------------------------------------------------
+describe('canductor health findings display', () => {
+  let healthDir: string;
+
+  beforeEach(() => {
+    healthDir = join(tmpdir(), `canductor-health-findings-${Date.now()}`);
+    mkdirSync(healthDir, { recursive: true });
+    setupConfig(healthDir);
+    // Create results.tsv
+    const resultsHeader = 'ref\ttimestamp\tcomposite_score\tdecision\tlayer_scores\tstatus\tdescription';
+    const resultsRow = '1\t2026-01-01T00:00:00Z\t95\tauto_merge\ttests:95\tmerged\tVerified 1';
+    writeFileSync(join(healthDir, '.canductor/results.tsv'), resultsHeader + '\n' + resultsRow + '\n');
+    // Create findings.tsv with 1 active and 1 resolved
+    const findingsHeader = 'category\ttemplate\tfinding\tref\ttimestamp\tresolved';
+    const activeRow = 'drift\tmodule.md\tActive issue\t#50\t2026-01-01T00:00:00Z\t';
+    const resolvedRow = 'dead-code\tmodule.md\tFixed issue\t#51\t2026-01-02T00:00:00Z\ttrue';
+    writeFileSync(
+      join(healthDir, '.canductor/findings.tsv'),
+      [findingsHeader, activeRow, resolvedRow].join('\n') + '\n'
+    );
+  });
+
+  afterEach(() => {
+    rmSync(healthDir, { recursive: true, force: true });
+  });
+
+  it('only counts active findings as issues in summary', () => {
+    const { stdout, exitCode } = runCli('health', healthDir);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('Pipeline has 1 issue');
+    expect(stdout).toContain('1 active, 1 resolved');
+  });
+
+  it('includes resolvedFindings count in JSON output', () => {
+    const { stdout, exitCode } = runCli('health --json', healthDir);
+    expect(exitCode).toBe(0);
+    const json = JSON.parse(stdout);
+    expect(json.resolvedFindings).toBe(1);
+  });
+});
+
 // Cleanup top-level test dir
 afterEach(() => {
   // Individual test suites clean their own dirs
