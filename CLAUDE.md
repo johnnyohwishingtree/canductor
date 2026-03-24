@@ -128,16 +128,16 @@ Rules in `.claude/rules/` are auto-loaded into every Claude session. See `.claud
 Current baseline quality score: 99/100
 
 ### Task type performance:
-- **module** (.canductor/templates/module.md): avg 1 cycles, 10 uses — converged
-- **test** (.canductor/templates/test.md): avg 1 cycles, 9 uses — converged
+- **module** (.canductor/templates/module.md): avg 1 cycles, 12 uses — converged
+- **test** (.canductor/templates/test.md): avg 1 cycles, 11 uses — converged
 - **update-exports** (.canductor/templates/module.md): avg 1 cycles, 2 uses — good
 - **new-cli-command** (.canductor/patterns/new-cli-command.md): avg 1 cycles, 2 uses — good
 - **refactor** (.canductor/patterns/refactor.md): avg 1 cycles, 3 uses — converged
 
 ### Recent verification results:
-- 108: score=99 merged (Verified 108)
-- 109: score=98 merged (Verified 109)
 - 110: score=98 merged (Verified 110)
 - 111: score=99 merged (Verified 111)
 - 118: score=99 merged (Verified 118)
+- 122: score=99 merged (Verified 122)
+- 123: score=99 merged (Verified 123)
 <!-- canductor:end -->
