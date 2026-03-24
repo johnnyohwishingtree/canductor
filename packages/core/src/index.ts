@@ -1,7 +1,7 @@
 export { loadConfig, findConfigPath, writeConfigBaseline, validateConfig, listLayers } from './config.js';
 export { verify, computeCompositeScore, evaluatePolicy } from './verify.js';
 export { runLayer, runDeterministicLayer, runScreenshotDiffLayer, runAgentReviewLayer, getAgentReviewPrompt } from './layers.js';
-export { readResults, appendResult, updateResultStatus, analyzeResults, detectStalls, correlateLayerFailures, analyzeTrajectory, generatePromptContext, diffResults, getStatus, getTrend, computeAutoBaseline, getBaseline } from './results.js';
+export { readResults, appendResult, updateResultStatus, analyzeResults, detectStalls, correlateLayerFailures, analyzeTrajectory, generateInsights, generatePromptContext, diffResults, getStatus, getTrend, computeAutoBaseline, getBaseline } from './results.js';
 export type { LayerDiff, DiffResult, PipelineStatus, TrendEntry, TrendResult } from './results.js';
 export { compareScreenshots, updateBaseline } from './screenshot.js';
 export type { ScreenshotDiffResult } from './screenshot.js';
@@ -38,6 +38,7 @@ export type {
   LayerCorrelation,
   LayerTrajectory,
   TrajectoryAnalysis,
+  InsightsResult,
   GuardrailPattern,
   GuardrailViolation,
   ConfigValidation,

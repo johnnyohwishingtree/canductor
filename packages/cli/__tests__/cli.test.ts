@@ -831,6 +831,51 @@ describe('unknown command', () => {
   });
 });
 
+describe('canductor insights', () => {
+  let insightsDir: string;
+
+  beforeEach(() => {
+    insightsDir = join(TEST_DIR, `insights-${Date.now()}`);
+    mkdirSync(insightsDir, { recursive: true });
+    setupConfig(insightsDir);
+  });
+
+  afterEach(() => {
+    rmSync(insightsDir, { recursive: true, force: true });
+  });
+
+  it('shows insights with recommendations after verification', () => {
+    runCli('verify ins-ref-1', insightsDir);
+    runCli('verify ins-ref-2', insightsDir);
+
+    const { stdout, exitCode } = runCli('insights', insightsDir);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('Canductor Insights');
+    expect(stdout).toContain('Overall:');
+    expect(stdout).toContain('Recommendations:');
+  });
+
+  it('outputs valid JSON with --json flag', () => {
+    runCli('verify ins-json-1', insightsDir);
+
+    const { stdout, exitCode } = runCli('insights --json', insightsDir);
+    expect(exitCode).toBe(0);
+    const parsed = JSON.parse(stdout);
+    expect(parsed).toHaveProperty('trajectory');
+    expect(parsed).toHaveProperty('correlations');
+    expect(parsed).toHaveProperty('recommendations');
+    expect(parsed.trajectory).toHaveProperty('overall');
+    expect(parsed.trajectory).toHaveProperty('layers');
+  });
+
+  it('handles no results gracefully', () => {
+    const { stdout, exitCode } = runCli('insights', insightsDir);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('Canductor Insights');
+    expect(stdout).toContain('Overall:');
+  });
+});
+
 // Cleanup top-level test dir
 afterEach(() => {
   // Individual test suites clean their own dirs

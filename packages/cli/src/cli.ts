@@ -41,6 +41,7 @@ import {
   validateConfig,
   listLayers,
   runLayer,
+  generateInsights,
 } from '@canductor/core';
 import type { AgentReviewResult } from '@canductor/core';
 import { writeFileSync, existsSync, mkdirSync } from 'node:fs';
@@ -76,6 +77,7 @@ Usage:
   canductor layer-test <name> [--json]        Run a single layer in isolation
   canductor config-check [--json]             Validate config file and policy expressions
   canductor clean [--force]                  Remove merged canductor branches
+  canductor insights [--json]                 Show trajectory, correlations, and recommendations
   canductor skill-lint                       Validate SKILL.md frontmatter
   canductor help                             Show this message
 `);
@@ -588,6 +590,52 @@ function cmdClean(): void {
   console.log(`\n${deleted}/${results.length} branch(es) deleted.`);
 }
 
+function cmdInsights(): void {
+  const jsonMode = args.includes('--json');
+  const insights = generateInsights(repoRoot);
+
+  if (jsonMode) {
+    console.log(JSON.stringify(insights, null, 2));
+    return;
+  }
+
+  // Trajectory summary
+  console.log('Canductor Insights');
+  console.log('==================');
+  console.log('');
+
+  const { trajectory } = insights;
+  const arrow = trajectory.overall.direction === 'improving' ? '↑' :
+    trajectory.overall.direction === 'declining' ? '↓' : '→';
+  console.log(`Overall: ${arrow} ${trajectory.overall.direction} (slope: ${trajectory.overall.slope})`);
+
+  if (trajectory.layers.length > 0) {
+    console.log('');
+    console.log('Layer trajectories:');
+    for (const layer of trajectory.layers) {
+      const layerArrow = layer.direction === 'improving' ? '↑' :
+        layer.direction === 'declining' ? '↓' : '→';
+      console.log(`  ${layerArrow} ${layer.layer}: ${layer.direction} (slope: ${layer.slope})`);
+    }
+  }
+
+  // Correlations
+  if (insights.correlations.length > 0) {
+    console.log('');
+    console.log('Layer failure correlations:');
+    for (const corr of insights.correlations) {
+      console.log(`  ${corr.layer1} + ${corr.layer2}: ${Math.round(corr.ratio * 100)}% co-failure rate (${corr.coFailures} co-failures)`);
+    }
+  }
+
+  // Recommendations
+  console.log('');
+  console.log('Recommendations:');
+  for (const rec of insights.recommendations) {
+    console.log(`  • ${rec}`);
+  }
+}
+
 function cmdSkillLint(): void {
   const results = lintSkills(repoRoot);
 
@@ -766,6 +814,9 @@ async function main(): Promise<void> {
       break;
     case 'clean':
       cmdClean();
+      break;
+    case 'insights':
+      cmdInsights();
       break;
     case 'skill-lint':
       cmdSkillLint();

@@ -204,6 +204,13 @@ export interface ConfigValidation {
   warnings: ConfigValidationIssue[];
 }
 
+/** Combined insights from trajectory analysis and layer failure correlations. */
+export interface InsightsResult {
+  trajectory: TrajectoryAnalysis;
+  correlations: LayerCorrelation[];
+  recommendations: string[];
+}
+
 /** Context injected into agent prompts based on results history. */
 export interface QualityContext {
   /** Recent results summary. */

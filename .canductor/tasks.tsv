@@ -2,3 +2,6 @@ task_type	guided_by	ref	verify_cycle	failure	timestamp
 module	.claude/templates/module.md	#89	1	none	2026-03-24T05:08:22Z
 test	.claude/templates/test.md	#89	1	none	2026-03-24T05:08:22Z
 update-exports	.claude/templates/module.md	#89	1	none	2026-03-24T05:08:22Z
+new-cli-command	.claude/patterns/new-cli-command.md	#90	1	none	2026-03-24T05:12:41Z
+module	.claude/templates/module.md	#90	1	none	2026-03-24T05:12:41Z
+test	.claude/templates/test.md	#90	1	none	2026-03-24T05:12:41Z
