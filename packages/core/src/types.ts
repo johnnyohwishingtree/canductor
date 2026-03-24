@@ -167,6 +167,15 @@ export interface StallDetection {
   suggestion: string;
 }
 
+/** Co-failure correlation between two verification layers. */
+export interface LayerCorrelation {
+  layer1: string;
+  layer2: string;
+  coFailures: number;
+  eitherFailed: number;
+  ratio: number;
+}
+
 /** A single issue found during config validation. */
 export interface ConfigValidationIssue {
   level: 'error' | 'warning';

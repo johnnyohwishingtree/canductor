@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { appendResult, readResults, updateResultStatus, analyzeResults, detectStalls, generatePromptContext, diffResults, getStatus, getTrend, computeAutoBaseline, getBaseline } from '../src/results.js';
+import { appendResult, readResults, updateResultStatus, analyzeResults, detectStalls, correlateLayerFailures, generatePromptContext, diffResults, getStatus, getTrend, computeAutoBaseline, getBaseline } from '../src/results.js';
 import type { VerifyResult, CanductorConfig, ResultRow } from '../src/types.js';
 
 let tempDir: string;
@@ -592,5 +592,130 @@ describe('updateResultStatus edge cases', () => {
 
     const updated = updateResultStatus(tempDir, 'nonexistent', 'rejected');
     expect(updated).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// correlateLayerFailures
+// ---------------------------------------------------------------------------
+describe('correlateLayerFailures', () => {
+  function makeRow(overrides: Partial<ResultRow>): ResultRow {
+    return {
+      ref: '1',
+      timestamp: new Date().toISOString(),
+      composite_score: 90,
+      decision: 'auto_merge',
+      layer_scores: 'tests:100',
+      status: 'pending',
+      description: 'Test',
+      ...overrides,
+    };
+  }
+
+  it('returns correlation of 1.0 for two layers that always fail together', () => {
+    const results: ResultRow[] = [
+      makeRow({ ref: '1', layer_scores: 'tests:50,visual:60' }),
+      makeRow({ ref: '2', layer_scores: 'tests:40,visual:70' }),
+      makeRow({ ref: '3', layer_scores: 'tests:30,visual:50' }),
+    ];
+
+    const correlations = correlateLayerFailures(results);
+    expect(correlations).toHaveLength(1);
+    expect(correlations[0].layer1).toBe('tests');
+    expect(correlations[0].layer2).toBe('visual');
+    expect(correlations[0].coFailures).toBe(3);
+    expect(correlations[0].ratio).toBe(1.0);
+  });
+
+  it('returns no correlation for layers that never co-fail', () => {
+    const results: ResultRow[] = [
+      makeRow({ ref: '1', layer_scores: 'tests:50,visual:90' }),
+      makeRow({ ref: '2', layer_scores: 'tests:90,visual:50' }),
+      makeRow({ ref: '3', layer_scores: 'tests:40,visual:95' }),
+    ];
+
+    const correlations = correlateLayerFailures(results);
+    expect(correlations).toEqual([]);
+  });
+
+  it('returns empty array when no failures exist', () => {
+    const results: ResultRow[] = [
+      makeRow({ ref: '1', layer_scores: 'tests:90,visual:85' }),
+      makeRow({ ref: '2', layer_scores: 'tests:95,visual:80' }),
+    ];
+
+    const correlations = correlateLayerFailures(results);
+    expect(correlations).toEqual([]);
+  });
+
+  it('returns empty array for single-layer results', () => {
+    const results: ResultRow[] = [
+      makeRow({ ref: '1', layer_scores: 'tests:50' }),
+      makeRow({ ref: '2', layer_scores: 'tests:40' }),
+      makeRow({ ref: '3', layer_scores: 'tests:30' }),
+    ];
+
+    const correlations = correlateLayerFailures(results);
+    expect(correlations).toEqual([]);
+  });
+
+  it('returns empty array for empty input', () => {
+    const correlations = correlateLayerFailures([]);
+    expect(correlations).toEqual([]);
+  });
+
+  it('requires at least 2 co-failures to report a correlation', () => {
+    const results: ResultRow[] = [
+      makeRow({ ref: '1', layer_scores: 'tests:50,visual:60' }),
+      makeRow({ ref: '2', layer_scores: 'tests:90,visual:90' }),
+    ];
+
+    const correlations = correlateLayerFailures(results);
+    expect(correlations).toEqual([]);
+  });
+
+  it('handles results with different layer configurations', () => {
+    const results: ResultRow[] = [
+      makeRow({ ref: '1', layer_scores: 'tests:50,visual:60' }),
+      makeRow({ ref: '2', layer_scores: 'tests:40,ux:70' }),
+      makeRow({ ref: '3', layer_scores: 'tests:30,visual:50,ux:60' }),
+    ];
+
+    const correlations = correlateLayerFailures(results);
+    // tests+visual co-fail in runs 1 and 3 (2 co-failures)
+    expect(correlations.some(c =>
+      c.layer1 === 'tests' && c.layer2 === 'visual' && c.coFailures === 2
+    )).toBe(true);
+    // tests+ux co-fail in runs 2 and 3 (2 co-failures)
+    expect(correlations.some(c =>
+      c.layer1 === 'tests' && c.layer2 === 'ux' && c.coFailures === 2
+    )).toBe(true);
+  });
+
+  it('sorts correlations by ratio descending', () => {
+    const results: ResultRow[] = [
+      makeRow({ ref: '1', layer_scores: 'a:50,b:50,c:50' }),
+      makeRow({ ref: '2', layer_scores: 'a:50,b:50,c:50' }),
+      makeRow({ ref: '3', layer_scores: 'a:50,b:90,c:50' }),
+    ];
+
+    const correlations = correlateLayerFailures(results);
+    // a+c always co-fail (ratio 1.0), a+b co-fail 2/3 times
+    expect(correlations.length).toBeGreaterThanOrEqual(2);
+    for (let i = 1; i < correlations.length; i++) {
+      expect(correlations[i - 1].ratio).toBeGreaterThanOrEqual(correlations[i].ratio);
+    }
+  });
+
+  it('handles empty layer_scores gracefully', () => {
+    const results: ResultRow[] = [
+      makeRow({ ref: '1', layer_scores: '' }),
+      makeRow({ ref: '2', layer_scores: 'tests:50,visual:60' }),
+      makeRow({ ref: '3', layer_scores: 'tests:40,visual:50' }),
+    ];
+
+    const correlations = correlateLayerFailures(results);
+    expect(correlations).toHaveLength(1);
+    expect(correlations[0].coFailures).toBe(2);
   });
 });
