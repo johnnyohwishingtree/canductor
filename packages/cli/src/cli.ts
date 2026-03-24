@@ -52,11 +52,11 @@ Usage:
   canductor verify [ref] --self-review       Output review prompt for agent-review layers (no API key needed)
   canductor verify [ref] --review-json <j>   Use pre-evaluated review JSON for agent-review layers
   canductor score [ref]                      Run layers, print composite score only
-  canductor status                           Show pipeline health overview
-  canductor trend [--last N]                 Show quality trend over last N results (default 10)
-  canductor history                          Show results history table
-  canductor diff <ref1> <ref2>               Compare quality scores between two refs
-  canductor baseline                         Show current quality baseline
+  canductor status [--json]                   Show pipeline health overview
+  canductor trend [--last N] [--json]        Show quality trend over last N results (default 10)
+  canductor history [--json]                 Show results history table
+  canductor diff <ref1> <ref2> [--json]      Compare quality scores between two refs
+  canductor baseline [--json]                Show current quality baseline
   canductor baseline --set N                 Set baseline override to N
   canductor baseline --auto                  Set baseline from last 5 merged scores
   canductor result-update <ref> <status>     Update result status (merged|rejected|pending)
@@ -223,9 +223,19 @@ async function cmdScore(): Promise<void> {
 }
 
 function cmdHistory(): void {
+  const jsonMode = args.includes('--json');
   const results = readResults(repoRoot);
   if (results.length === 0) {
-    console.log('No results yet. Run: canductor verify');
+    if (jsonMode) {
+      console.log(JSON.stringify([]));
+    } else {
+      console.log('No results yet. Run: canductor verify');
+    }
+    return;
+  }
+
+  if (jsonMode) {
+    console.log(JSON.stringify(results.slice(-20)));
     return;
   }
 
@@ -237,6 +247,7 @@ function cmdHistory(): void {
 }
 
 function cmdDiff(): void {
+  const jsonMode = args.includes('--json');
   const ref1 = args[1];
   const ref2 = args[2];
   if (!ref1 || !ref2) {
@@ -258,6 +269,11 @@ function cmdDiff(): void {
       console.error(`Available refs: ${found.join(', ')}`);
     }
     process.exit(1);
+  }
+
+  if (jsonMode) {
+    console.log(JSON.stringify(diff));
+    return;
   }
 
   const sign = (n: number) => (n > 0 ? `+${n}` : `${n}`);
@@ -287,13 +303,23 @@ function cmdDiff(): void {
 }
 
 function cmdTrend(): void {
+  const jsonMode = args.includes('--json');
   const lastIdx = args.indexOf('--last');
   const last = lastIdx !== -1 && args[lastIdx + 1] ? parseInt(args[lastIdx + 1], 10) : 10;
 
   const trend = getTrend(repoRoot, last);
 
   if (trend.entries.length === 0) {
-    console.log('No results yet. Run: canductor verify');
+    if (jsonMode) {
+      console.log(JSON.stringify(trend));
+    } else {
+      console.log('No results yet. Run: canductor verify');
+    }
+    return;
+  }
+
+  if (jsonMode) {
+    console.log(JSON.stringify(trend));
     return;
   }
 
@@ -322,10 +348,20 @@ function cmdTrend(): void {
 }
 
 function cmdStatus(): void {
+  const jsonMode = args.includes('--json');
   const s = getStatus(repoRoot);
 
   if (s.total === 0) {
-    console.log('No results yet. Run: canductor verify');
+    if (jsonMode) {
+      console.log(JSON.stringify(s));
+    } else {
+      console.log('No results yet. Run: canductor verify');
+    }
+    return;
+  }
+
+  if (jsonMode) {
+    console.log(JSON.stringify(s));
     return;
   }
 
@@ -386,6 +422,7 @@ function cmdBaseline(): void {
   }
 
   // Show current baseline
+  const jsonMode = args.includes('--json');
   let config = null;
   try {
     config = loadConfig(repoRoot);
@@ -393,6 +430,12 @@ function cmdBaseline(): void {
     // no config file — that's fine, we'll compute from results
   }
   const baseline = getBaseline(repoRoot, config);
+
+  if (jsonMode) {
+    console.log(JSON.stringify({ baseline }));
+    return;
+  }
+
   const source = config?.baseline !== undefined ? 'config override' : 'computed from last 5 merged scores';
   console.log(`Current baseline: ${baseline}/100 (${source})`);
 }

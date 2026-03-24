@@ -204,6 +204,28 @@ describe('canductor history', () => {
     expect(stdout).toContain('score');
     expect(stdout).toContain('hist-test');
   });
+
+  it('outputs valid JSON array with --json flag when no results', () => {
+    const { stdout, exitCode } = runCli('history --json', histDir);
+    expect(exitCode).toBe(0);
+    const parsed = JSON.parse(stdout.trim());
+    expect(Array.isArray(parsed)).toBe(true);
+    expect(parsed).toHaveLength(0);
+  });
+
+  it('outputs valid JSON array with --json flag after verification', () => {
+    runCli('verify hist-json', histDir);
+
+    const { stdout, exitCode } = runCli('history --json', histDir);
+    expect(exitCode).toBe(0);
+    const parsed = JSON.parse(stdout.trim());
+    expect(Array.isArray(parsed)).toBe(true);
+    expect(parsed.length).toBeGreaterThan(0);
+    expect(parsed[0]).toHaveProperty('ref');
+    expect(parsed[0]).toHaveProperty('composite_score');
+    expect(parsed[0]).toHaveProperty('decision');
+    expect(parsed[0]).toHaveProperty('status');
+  });
 });
 
 describe('canductor status', () => {
@@ -233,6 +255,26 @@ describe('canductor status', () => {
     expect(stdout).toContain('Canductor Status');
     expect(stdout).toContain('Results:');
     expect(stdout).toContain('Baseline:');
+  });
+
+  it('outputs valid JSON with --json flag when no results', () => {
+    const { stdout, exitCode } = runCli('status --json', statusDir);
+    expect(exitCode).toBe(0);
+    const parsed = JSON.parse(stdout.trim());
+    expect(parsed).toHaveProperty('total', 0);
+  });
+
+  it('outputs valid JSON with --json flag after verification', () => {
+    runCli('verify status-json', statusDir);
+
+    const { stdout, exitCode } = runCli('status --json', statusDir);
+    expect(exitCode).toBe(0);
+    const parsed = JSON.parse(stdout.trim());
+    expect(parsed).toHaveProperty('total');
+    expect(parsed).toHaveProperty('merged');
+    expect(parsed).toHaveProperty('baseline');
+    expect(parsed).toHaveProperty('lastScore');
+    expect(typeof parsed.total).toBe('number');
   });
 });
 
@@ -444,6 +486,28 @@ describe('canductor trend', () => {
     expect(exitCode).toBe(0);
     expect(stdout).toContain('Direction:');
   });
+
+  it('outputs valid JSON with --json flag when no results', () => {
+    const { stdout, exitCode } = runCli('trend --json', trendDir);
+    expect(exitCode).toBe(0);
+    const parsed = JSON.parse(stdout.trim());
+    expect(parsed).toHaveProperty('entries');
+    expect(Array.isArray(parsed.entries)).toBe(true);
+  });
+
+  it('outputs valid JSON with --json flag after verification', () => {
+    runCli('verify trend-json-1', trendDir);
+    runCli('verify trend-json-2', trendDir);
+
+    const { stdout, exitCode } = runCli('trend --json', trendDir);
+    expect(exitCode).toBe(0);
+    const parsed = JSON.parse(stdout.trim());
+    expect(parsed).toHaveProperty('entries');
+    expect(parsed).toHaveProperty('avg');
+    expect(parsed).toHaveProperty('best');
+    expect(parsed).toHaveProperty('worst');
+    expect(parsed.entries.length).toBeGreaterThan(0);
+  });
 });
 
 describe('canductor diff', () => {
@@ -490,6 +554,22 @@ describe('canductor diff', () => {
     const { stdout, exitCode } = runCli('diff unknown-1 unknown-2', diffDir);
     expect(exitCode).toBe(1);
     expect(stdout).toContain('Ref not found');
+  });
+
+  it('outputs valid JSON with --json flag', () => {
+    runCli('verify diff-j1', diffDir);
+    runCli('verify diff-j2', diffDir);
+
+    const { stdout, exitCode } = runCli('diff diff-j1 diff-j2 --json', diffDir);
+    expect(exitCode).toBe(0);
+    const parsed = JSON.parse(stdout.trim());
+    expect(parsed).toHaveProperty('ref1', 'diff-j1');
+    expect(parsed).toHaveProperty('ref2', 'diff-j2');
+    expect(parsed).toHaveProperty('composite1');
+    expect(parsed).toHaveProperty('composite2');
+    expect(parsed).toHaveProperty('delta');
+    expect(parsed).toHaveProperty('layers');
+    expect(typeof parsed.delta).toBe('number');
   });
 });
 
@@ -538,6 +618,14 @@ describe('canductor baseline', () => {
     expect(exitCode).toBe(0);
     expect(stdout).toContain('Baseline set to');
     expect(stdout).toContain('computed from last 5 merged scores');
+  });
+
+  it('outputs valid JSON with --json flag', () => {
+    const { stdout, exitCode } = runCli('baseline --json', baseDir);
+    expect(exitCode).toBe(0);
+    const parsed = JSON.parse(stdout.trim());
+    expect(parsed).toHaveProperty('baseline');
+    expect(typeof parsed.baseline).toBe('number');
   });
 });
 
