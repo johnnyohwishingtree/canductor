@@ -1,4 +1,4 @@
-export { loadConfig, findConfigPath, writeConfigBaseline } from './config.js';
+export { loadConfig, findConfigPath, writeConfigBaseline, validateConfig } from './config.js';
 export { verify, computeCompositeScore, evaluatePolicy } from './verify.js';
 export { runLayer, runDeterministicLayer, runScreenshotDiffLayer, runAgentReviewLayer, getAgentReviewPrompt } from './layers.js';
 export { readResults, appendResult, updateResultStatus, analyzeResults, detectStalls, generatePromptContext, diffResults, getStatus, getTrend, computeAutoBaseline, getBaseline } from './results.js';
@@ -35,4 +35,6 @@ export type {
   StallDetection,
   GuardrailPattern,
   GuardrailViolation,
+  ConfigValidation,
+  ConfigValidationIssue,
 } from './types.js';

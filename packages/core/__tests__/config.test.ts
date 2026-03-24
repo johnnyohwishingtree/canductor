@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { loadConfig, writeConfigBaseline } from '../src/config.js';
+import { loadConfig, writeConfigBaseline, validateConfig } from '../src/config.js';
 
 let tempDir: string;
 
@@ -312,5 +312,158 @@ policy:
     const config = loadConfig(tempDir);
     expect(config.layers.tests.type).toBe('deterministic');
     expect(config.layers.guard.type).toBe('guardrail');
+  });
+});
+
+describe('validateConfig', () => {
+  it('returns valid for a correct config', () => {
+    writeConfig(minimalConfig);
+    const result = validateConfig(tempDir);
+    expect(result.valid).toBe(true);
+    expect(result.errors).toHaveLength(0);
+    expect(result.warnings).toHaveLength(0);
+  });
+
+  it('returns error when no config file exists', () => {
+    const result = validateConfig(tempDir);
+    expect(result.valid).toBe(false);
+    expect(result.errors.length).toBeGreaterThan(0);
+    expect(result.errors[0].message).toContain('No config file found');
+  });
+
+  it('returns error when YAML is invalid', () => {
+    const dir = join(tempDir, '.canductor');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'config.yaml'), ': : : bad yaml [[[');
+    const result = validateConfig(tempDir);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some(e => e.message.includes('parse'))).toBe(true);
+  });
+
+  it('returns error for invalid schema (missing version)', () => {
+    writeConfig(`layers:
+  tests:
+    name: tests
+    type: deterministic
+    run: "npm test"
+    weight: 1.0
+policy:
+  auto_merge: "all_pass"
+  human_review: "false"
+  block: "any_fail"
+`);
+    const result = validateConfig(tempDir);
+    expect(result.valid).toBe(false);
+    expect(result.errors.length).toBeGreaterThan(0);
+  });
+
+  it('returns error for missing rubric file on agent-review layer', () => {
+    writeConfig(`version: 1
+layers:
+  review:
+    name: review
+    type: agent-review
+    rubric: "nonexistent-rubric.md"
+    weight: 0.5
+policy:
+  auto_merge: "all_pass"
+  human_review: "false"
+  block: "any_fail"
+`);
+    const result = validateConfig(tempDir);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some(e => e.message.includes('Rubric file not found'))).toBe(true);
+    expect(result.errors.some(e => e.path === 'layers.review.rubric')).toBe(true);
+  });
+
+  it('returns error for invalid policy expression syntax', () => {
+    writeConfig(`version: 1
+layers:
+  tests:
+    name: tests
+    type: deterministic
+    run: "npm test"
+    weight: 1.0
+policy:
+  auto_merge: "all_pass AND AND"
+  human_review: "false"
+  block: "any_fail"
+`);
+    const result = validateConfig(tempDir);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some(e => e.message.includes('Invalid policy expression'))).toBe(true);
+  });
+
+  it('returns error for guardrail layer with no include and no patterns', () => {
+    writeConfig(`version: 1
+layers:
+  guard:
+    name: guard
+    type: guardrail
+    weight: 0.2
+policy:
+  auto_merge: "all_pass"
+  human_review: "false"
+  block: "any_fail"
+`);
+    const result = validateConfig(tempDir);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some(e => e.message.includes('nothing to check'))).toBe(true);
+  });
+
+  it('warns when all weights sum to zero', () => {
+    writeConfig(`version: 1
+layers:
+  tests:
+    name: tests
+    type: deterministic
+    run: "npm test"
+    weight: 0
+policy:
+  auto_merge: "all_pass"
+  human_review: "false"
+  block: "any_fail"
+`);
+    const result = validateConfig(tempDir);
+    expect(result.valid).toBe(true);
+    expect(result.warnings.some(w => w.message.includes('weights sum to 0'))).toBe(true);
+  });
+
+  it('returns error for deterministic layer without run command', () => {
+    writeConfig(`version: 1
+layers:
+  tests:
+    name: tests
+    type: deterministic
+    weight: 1.0
+policy:
+  auto_merge: "all_pass"
+  human_review: "false"
+  block: "any_fail"
+`);
+    const result = validateConfig(tempDir);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some(e => e.message.includes('no run command'))).toBe(true);
+  });
+
+  it('passes when rubric file exists', () => {
+    const rubricDir = join(tempDir, 'rubrics');
+    mkdirSync(rubricDir, { recursive: true });
+    writeFileSync(join(rubricDir, 'quality.md'), '# Quality rubric');
+    writeConfig(`version: 1
+layers:
+  review:
+    name: review
+    type: agent-review
+    rubric: "rubrics/quality.md"
+    weight: 0.5
+policy:
+  auto_merge: "all_pass"
+  human_review: "false"
+  block: "any_fail"
+`);
+    const result = validateConfig(tempDir);
+    expect(result.valid).toBe(true);
+    expect(result.errors).toHaveLength(0);
   });
 });

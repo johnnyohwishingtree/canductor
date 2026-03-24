@@ -159,6 +159,20 @@ export interface StallDetection {
   suggestion: string;
 }
 
+/** A single issue found during config validation. */
+export interface ConfigValidationIssue {
+  level: 'error' | 'warning';
+  message: string;
+  path?: string;
+}
+
+/** Result of validating a canductor config file. */
+export interface ConfigValidation {
+  valid: boolean;
+  errors: ConfigValidationIssue[];
+  warnings: ConfigValidationIssue[];
+}
+
 /** Context injected into agent prompts based on results history. */
 export interface QualityContext {
   /** Recent results summary. */
