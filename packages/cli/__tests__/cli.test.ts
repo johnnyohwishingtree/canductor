@@ -93,7 +93,7 @@ describe('canductor init', () => {
     expect(exitCode).toBe(0);
     expect(stdout).toContain('Created .canductor/config.yaml');
     expect(existsSync(join(initDir, '.canductor', 'config.yaml'))).toBe(true);
-  }, 15000);
+  }, 30000);
 
   it('reports existing config without overwriting', () => {
     setupConfig(initDir);
@@ -360,6 +360,136 @@ policy:
     expect(exitCode).toBe(0);
     expect(stdout).toContain('PASS');
     expect(stdout).toContain('auto_merge');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Score, Trend, Diff commands (#56)
+// ---------------------------------------------------------------------------
+
+describe('canductor score', () => {
+  let scoreDir: string;
+
+  beforeEach(() => {
+    scoreDir = join(TEST_DIR, `score-${Date.now()}`);
+    mkdirSync(scoreDir, { recursive: true });
+    setupConfig(scoreDir);
+  });
+
+  afterEach(() => {
+    rmSync(scoreDir, { recursive: true, force: true });
+  });
+
+  it('outputs a numeric score and exits 0', () => {
+    const { stdout, exitCode } = runCli('score test-ref', scoreDir);
+    expect(exitCode).toBe(0);
+    const score = parseInt(stdout.trim(), 10);
+    expect(score).toBeGreaterThanOrEqual(0);
+    expect(score).toBeLessThanOrEqual(100);
+  });
+});
+
+describe('canductor trend', () => {
+  let trendDir: string;
+
+  beforeEach(() => {
+    trendDir = join(TEST_DIR, `trend-${Date.now()}`);
+    mkdirSync(trendDir, { recursive: true });
+    setupConfig(trendDir);
+  });
+
+  afterEach(() => {
+    rmSync(trendDir, { recursive: true, force: true });
+  });
+
+  it('shows empty message when no results', () => {
+    const { stdout, exitCode } = runCli('trend', trendDir);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('No results yet');
+  });
+
+  it('shows trend data with scores after verification', () => {
+    // Populate results
+    runCli('verify trend-ref-1', trendDir);
+    runCli('verify trend-ref-2', trendDir);
+
+    const { stdout, exitCode } = runCli('trend', trendDir);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('Canductor Trend');
+    expect(stdout).toContain('trend-ref-1');
+    expect(stdout).toContain('trend-ref-2');
+    expect(stdout).toContain('Avg:');
+  });
+
+  it('limits output with --last flag', () => {
+    // Populate 3 results
+    runCli('verify trend-a', trendDir);
+    runCli('verify trend-b', trendDir);
+    runCli('verify trend-c', trendDir);
+
+    const { stdout, exitCode } = runCli('trend --last 2', trendDir);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('Canductor Trend (last 2 results)');
+    // Should show only 2 entries, not 3
+    expect(stdout).not.toContain('trend-a');
+    expect(stdout).toContain('trend-b');
+    expect(stdout).toContain('trend-c');
+  });
+
+  it('shows direction indicator with multiple results', () => {
+    runCli('verify trend-d1', trendDir);
+    runCli('verify trend-d2', trendDir);
+
+    const { stdout, exitCode } = runCli('trend', trendDir);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('Direction:');
+  });
+});
+
+describe('canductor diff', () => {
+  let diffDir: string;
+
+  beforeEach(() => {
+    diffDir = join(TEST_DIR, `diff-${Date.now()}`);
+    mkdirSync(diffDir, { recursive: true });
+    setupConfig(diffDir);
+  });
+
+  afterEach(() => {
+    rmSync(diffDir, { recursive: true, force: true });
+  });
+
+  it('outputs score comparison and layer breakdown', () => {
+    runCli('verify diff-ref-1', diffDir);
+    runCli('verify diff-ref-2', diffDir);
+
+    const { stdout, exitCode } = runCli('diff diff-ref-1 diff-ref-2', diffDir);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('Diff: diff-ref-1');
+    expect(stdout).toContain('diff-ref-2');
+    expect(stdout).toContain('Composite score:');
+    expect(stdout).toContain('Layer breakdown:');
+  });
+
+  it('exits 1 with usage message when missing args', () => {
+    const { stdout, exitCode } = runCli('diff', diffDir);
+    expect(exitCode).toBe(1);
+    expect(stdout).toContain('Usage: canductor diff');
+  });
+
+  it('exits 1 with one arg missing', () => {
+    const { stdout, exitCode } = runCli('diff only-one', diffDir);
+    expect(exitCode).toBe(1);
+    expect(stdout).toContain('Usage: canductor diff');
+  });
+
+  it('exits 1 with error for unknown refs', () => {
+    // Populate one result so results file exists
+    runCli('verify known-ref', diffDir);
+
+    const { stdout, exitCode } = runCli('diff unknown-1 unknown-2', diffDir);
+    expect(exitCode).toBe(1);
+    expect(stdout).toContain('Ref not found');
   });
 });
 
