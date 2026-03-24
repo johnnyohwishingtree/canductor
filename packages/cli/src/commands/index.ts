@@ -5,7 +5,10 @@
 import { cmdVerify, cmdScore, cmdLayerTest } from './verify.js';
 import {
   cmdStatus, cmdTrend, cmdDiff, cmdBaseline,
-  cmdHistory, cmdInsights, cmdTasks, cmdReport,
+  cmdHistory,
+} from './analytics-query.js';
+import {
+  cmdInsights, cmdTasks, cmdReport,
   cmdHealth,
 } from './analytics.js';
 import {
