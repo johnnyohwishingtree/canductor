@@ -1,3 +1,5 @@
 category	template	finding	ref	timestamp	resolved
 architecture	.canductor/templates/story.md	oversized module: packages/core/src/results.ts (772 lines)	audit-2026-03-24	2026-03-24T07:03:31Z	true
 stale-ref	.canductor/templates/story.md	broken reference in index.md: .canductor/learnings.md does not exist	audit-2026-03-24	2026-03-24T07:03:31Z	true
+untested	.canductor/templates/story.md	untested module: results-analysis has no test file	audit-2026-03-24	2026-03-24T15:05:19Z
+untested	.canductor/templates/story.md	untested module: results-query has no test file	audit-2026-03-24	2026-03-24T15:05:19Z
