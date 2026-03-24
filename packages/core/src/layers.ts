@@ -9,6 +9,17 @@ import { runAgentReview, buildReviewPrompt } from './agent-review.js';
 import { compareScreenshots } from './screenshot.js';
 import { runGuardrailLayer } from './guardrail.js';
 
+/** Return the default retry count for a given layer type. Always 0 (retry is opt-in). */
+export function defaultRetry(type: LayerConfig['type']): number {
+  switch (type) {
+    case 'deterministic':
+    case 'screenshot-diff':
+    case 'guardrail':
+    case 'agent-review':
+      return 0;
+  }
+}
+
 /** Return the default timeout in ms for a given layer type. */
 export function defaultTimeoutMs(type: LayerConfig['type']): number | undefined {
   switch (type) {
@@ -22,7 +33,7 @@ export function defaultTimeoutMs(type: LayerConfig['type']): number | undefined 
   }
 }
 
-/** Run a deterministic layer (shell command, pass/fail). */
+/** Run a deterministic layer (shell command, pass/fail) with optional retry. */
 export function runDeterministicLayer(layer: LayerConfig, options?: VerifyOptions): LayerResult {
   const start = Date.now();
   const cmd = layer.run;
@@ -36,52 +47,84 @@ export function runDeterministicLayer(layer: LayerConfig, options?: VerifyOption
       score: 0,
       errors: 'No "run" command specified',
       duration_ms: 0,
+      retries_attempted: 0,
     };
   }
 
   const timeout = layer.timeout_ms ?? defaultTimeoutMs(layer.type);
+  const maxRetries = layer.retry ?? defaultRetry(layer.type);
+  const retryDelay = layer.retry_delay_ms ?? 1000;
 
-  try {
-    const stdout = execSync(cmd, { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], timeout });
-    if (log && stdout) {
-      log(`[${layer.name}] stdout:\n${stdout}`);
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    if (attempt > 0 && retryDelay > 0) {
+      execSync(`sleep ${retryDelay / 1000}`, { stdio: 'ignore' });
     }
-    return {
-      name: layer.name,
-      type: 'deterministic',
-      pass: true,
-      score: 100,
-      errors: '',
-      duration_ms: Date.now() - start,
-    };
-  } catch (err: unknown) {
-    const error = err as { stdout?: string; stderr?: string; killed?: boolean; code?: string; signal?: string };
-    if (error.code === 'ETIMEDOUT') {
-      const usedTimeout = timeout ?? 0;
+
+    try {
+      const stdout = execSync(cmd, { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], timeout });
+      if (log && stdout) {
+        log(`[${layer.name}] stdout:\n${stdout}`);
+      }
       return {
         name: layer.name,
         type: 'deterministic',
-        pass: false,
-        score: 0,
-        errors: `Command timed out after ${usedTimeout}ms`,
+        pass: true,
+        score: 100,
+        errors: '',
         duration_ms: Date.now() - start,
-        timed_out: true,
+        retries_attempted: attempt,
       };
+    } catch (err: unknown) {
+      const error = err as { stdout?: string; stderr?: string; killed?: boolean; code?: string; signal?: string };
+
+      // On last attempt, return the failure result
+      if (attempt === maxRetries) {
+        if (error.code === 'ETIMEDOUT') {
+          const usedTimeout = timeout ?? 0;
+          return {
+            name: layer.name,
+            type: 'deterministic',
+            pass: false,
+            score: 0,
+            errors: `Command timed out after ${usedTimeout}ms`,
+            duration_ms: Date.now() - start,
+            timed_out: true,
+            retries_attempted: attempt,
+          };
+        }
+        const fullOutput = (error.stdout ?? '') + (error.stderr ?? '');
+        if (log) {
+          log(`[${layer.name}] stdout+stderr:\n${fullOutput}`);
+        }
+        const output = fullOutput.slice(-2000);
+        return {
+          name: layer.name,
+          type: 'deterministic',
+          pass: false,
+          score: 0,
+          errors: output,
+          duration_ms: Date.now() - start,
+          retries_attempted: attempt,
+        };
+      }
+
+      // Not the last attempt — will retry
+      if (log) {
+        log(`[${layer.name}] attempt ${attempt + 1} failed, retrying...`);
+      }
     }
-    const fullOutput = (error.stdout ?? '') + (error.stderr ?? '');
-    if (log) {
-      log(`[${layer.name}] stdout+stderr:\n${fullOutput}`);
-    }
-    const output = fullOutput.slice(-2000);
-    return {
-      name: layer.name,
-      type: 'deterministic',
-      pass: false,
-      score: 0,
-      errors: output,
-      duration_ms: Date.now() - start,
-    };
   }
+
+  // Unreachable, but TypeScript needs it
+  return {
+    name: layer.name,
+    type: 'deterministic',
+    pass: false,
+    score: 0,
+    errors: 'Unexpected retry loop exit',
+    duration_ms: Date.now() - start,
+    retries_attempted: maxRetries,
+  };
 }
 
 /** Run a screenshot-diff layer (capture + compare to baseline). */

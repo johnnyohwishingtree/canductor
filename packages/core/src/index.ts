@@ -1,6 +1,6 @@
 export { loadConfig, findConfigPath, writeConfigBaseline, validateConfig, listLayers } from './config.js';
 export { verify, computeCompositeScore, evaluatePolicy } from './verify.js';
-export { runLayer, runDeterministicLayer, runScreenshotDiffLayer, runAgentReviewLayer, getAgentReviewPrompt, defaultTimeoutMs } from './layers.js';
+export { runLayer, runDeterministicLayer, runScreenshotDiffLayer, runAgentReviewLayer, getAgentReviewPrompt, defaultTimeoutMs, defaultRetry } from './layers.js';
 export { readResults, appendResult, updateResultStatus } from './results.js';
 export { analyzeResults, detectStalls, correlateLayerFailures, analyzeTrajectory, generateInsights, generatePromptContext } from './results-analysis.js';
 export { diffResults, getStatus, getTrend, computeAutoBaseline, getBaseline } from './results-query.js';

@@ -9,6 +9,7 @@ import {
   getAgentReviewPrompt,
   runLayer,
   defaultTimeoutMs,
+  defaultRetry,
 } from '../src/layers.js';
 import type { LayerConfig, AgentReviewResult } from '../src/types.js';
 
@@ -554,5 +555,121 @@ describe('runScreenshotDiffLayer timeout', () => {
     // No baseline → first-run pass
     expect(result.pass).toBe(true);
     expect(result.timed_out).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// defaultRetry
+// ---------------------------------------------------------------------------
+describe('defaultRetry', () => {
+  it('returns 0 for all layer types', () => {
+    expect(defaultRetry('deterministic')).toBe(0);
+    expect(defaultRetry('screenshot-diff')).toBe(0);
+    expect(defaultRetry('guardrail')).toBe(0);
+    expect(defaultRetry('agent-review')).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// runDeterministicLayer — retry
+// ---------------------------------------------------------------------------
+describe('runDeterministicLayer retry', () => {
+  it('retries on failure and returns retries_attempted count', () => {
+    const layer: LayerConfig = {
+      name: 'always-fail',
+      type: 'deterministic',
+      run: 'exit 1',
+      weight: 1,
+      retry: 2,
+      retry_delay_ms: 10,
+    };
+
+    const result = runDeterministicLayer(layer);
+
+    expect(result.pass).toBe(false);
+    expect(result.score).toBe(0);
+    expect(result.retries_attempted).toBe(2);
+  });
+
+  it('succeeds on retry using flag file pattern', () => {
+    const flagFile = join(TEST_DIR, `retry-flag-${Date.now()}`);
+    const layer: LayerConfig = {
+      name: 'retry-success',
+      type: 'deterministic',
+      run: `test -f ${flagFile} && echo ok || (touch ${flagFile} && exit 1)`,
+      weight: 1,
+      retry: 2,
+      retry_delay_ms: 10,
+    };
+
+    const result = runDeterministicLayer(layer);
+
+    expect(result.pass).toBe(true);
+    expect(result.score).toBe(100);
+    expect(result.retries_attempted).toBe(1);
+  });
+
+  it('does not retry when retry is 0', () => {
+    const layer: LayerConfig = {
+      name: 'no-retry',
+      type: 'deterministic',
+      run: 'exit 1',
+      weight: 1,
+      retry: 0,
+      retry_delay_ms: 10,
+    };
+
+    const result = runDeterministicLayer(layer);
+
+    expect(result.pass).toBe(false);
+    expect(result.retries_attempted).toBe(0);
+  });
+
+  it('does not retry when retry is not set', () => {
+    const layer: LayerConfig = {
+      name: 'default-no-retry',
+      type: 'deterministic',
+      run: 'exit 1',
+      weight: 1,
+    };
+
+    const result = runDeterministicLayer(layer);
+
+    expect(result.pass).toBe(false);
+    expect(result.retries_attempted).toBe(0);
+  });
+
+  it('sets retries_attempted to 0 on first-attempt success', () => {
+    const layer: LayerConfig = {
+      name: 'instant-pass',
+      type: 'deterministic',
+      run: 'echo ok',
+      weight: 1,
+      retry: 3,
+      retry_delay_ms: 10,
+    };
+
+    const result = runDeterministicLayer(layer);
+
+    expect(result.pass).toBe(true);
+    expect(result.retries_attempted).toBe(0);
+  });
+
+  it('retries on timeout (ETIMEDOUT is transient)', () => {
+    const layer: LayerConfig = {
+      name: 'timeout-retry',
+      type: 'deterministic',
+      run: 'sleep 10',
+      weight: 1,
+      timeout_ms: 100,
+      retry: 1,
+      retry_delay_ms: 10,
+    };
+
+    const result = runDeterministicLayer(layer);
+
+    expect(result.pass).toBe(false);
+    expect(result.timed_out).toBe(true);
+    expect(result.retries_attempted).toBe(1);
   });
 });

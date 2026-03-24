@@ -36,6 +36,10 @@ export interface LayerConfig {
   parallel?: boolean;
   /** Max execution time in milliseconds. Defaults vary by layer type. */
   timeout_ms?: number;
+  /** Max retry attempts on failure. Defaults to 0 (no retry). */
+  retry?: number;
+  /** Delay in ms between retry attempts. Defaults to 1000. */
+  retry_delay_ms?: number;
 }
 
 /** A pattern to match in guardrail scanning. */
@@ -87,6 +91,8 @@ export interface LayerResult {
   duration_ms: number;
   /** Whether this layer was killed due to exceeding timeout_ms. */
   timed_out?: boolean;
+  /** Number of retry attempts before the final result. */
+  retries_attempted?: number;
 }
 
 /** Options for the verify() function. */
