@@ -85,6 +85,14 @@ export interface LayerResult {
   duration_ms: number;
 }
 
+/** Options for the verify() function. */
+export interface VerifyOptions {
+  /** When true, log full layer output instead of truncating. */
+  verbose?: boolean;
+  /** Custom logger function. Defaults to console.log when verbose is true. */
+  logger?: (msg: string) => void;
+}
+
 /** Result of a full verification run (all layers). */
 export interface VerifyResult {
   /** Git ref (PR number, branch, or commit). */

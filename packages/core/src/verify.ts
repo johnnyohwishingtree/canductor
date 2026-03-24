@@ -3,7 +3,7 @@
  * evaluates policy, returns a decision.
  */
 
-import type { CanductorConfig, LayerResult, VerifyResult, AgentReviewResult } from './types.js';
+import type { CanductorConfig, LayerResult, VerifyResult, AgentReviewResult, VerifyOptions } from './types.js';
 import { runLayer } from './layers.js';
 import { buildPolicyContext, evaluateAllPolicies } from './policy.js';
 
@@ -84,7 +84,8 @@ export async function verify(
   ref: string,
   config: CanductorConfig,
   selfReviewResults?: Record<string, AgentReviewResult>,
-  repoRoot?: string
+  repoRoot?: string,
+  options?: VerifyOptions
 ): Promise<VerifyResult> {
   const startTime = Date.now();
 
@@ -96,7 +97,7 @@ export async function verify(
   const parallelResults = await Promise.all(
     parallelEntries.map(([name, layerConfig]) => {
       const reviewResult = selfReviewResults?.[name];
-      return runLayer({ ...layerConfig, name }, reviewResult, repoRoot);
+      return runLayer({ ...layerConfig, name }, reviewResult, repoRoot, options);
     })
   );
 
@@ -104,7 +105,7 @@ export async function verify(
   const sequentialResults: LayerResult[] = [];
   for (const [name, layerConfig] of sequentialEntries) {
     const reviewResult = selfReviewResults?.[name];
-    const result = await runLayer({ ...layerConfig, name }, reviewResult, repoRoot);
+    const result = await runLayer({ ...layerConfig, name }, reviewResult, repoRoot, options);
     sequentialResults.push(result);
   }
 

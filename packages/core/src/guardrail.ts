@@ -8,7 +8,7 @@
 
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
-import type { LayerConfig, LayerResult, GuardrailViolation } from './types.js';
+import type { LayerConfig, LayerResult, GuardrailViolation, VerifyOptions } from './types.js';
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -21,8 +21,9 @@ import type { LayerConfig, LayerResult, GuardrailViolation } from './types.js';
  * @param repoRoot - Repository root directory for resolving globs
  * @returns Layer result with score proportional to violation count
  */
-export function runGuardrailLayer(layer: LayerConfig, repoRoot: string): LayerResult {
+export function runGuardrailLayer(layer: LayerConfig, repoRoot: string, options?: VerifyOptions): LayerResult {
   const start = Date.now();
+  const log = options?.verbose ? (options.logger ?? console.log) : undefined;
 
   if (!layer.patterns || layer.patterns.length === 0) {
     return {
@@ -47,7 +48,19 @@ export function runGuardrailLayer(layer: LayerConfig, repoRoot: string): LayerRe
   }
 
   const files = collectFiles(repoRoot, layer.include, layer.exclude ?? []);
+  if (log) {
+    log(`[${layer.name}] Scanning ${files.length} files`);
+    for (const f of files) {
+      log(`[${layer.name}]   ${f}`);
+    }
+  }
   const violations = scanFiles(files, layer.patterns, repoRoot);
+  if (log && violations.length > 0) {
+    log(`[${layer.name}] Found ${violations.length} violations`);
+    for (const v of violations) {
+      log(`[${layer.name}]   ${v.file}:${v.line} — ${v.message} (matched: "${v.match}")`);
+    }
+  }
 
   const score = violations.length === 0
     ? 100
