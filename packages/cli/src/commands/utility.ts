@@ -16,6 +16,8 @@ import {
   deleteBranches,
   validateConfig,
   listLayers,
+  readFindings,
+  resolveFindings,
 } from '@canductor/core';
 import { writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -325,4 +327,38 @@ export function cmdLayers(args: string[], repoRoot: string): void {
   const totalWeight = layers.reduce((sum, l) => sum + l.weight, 0);
   console.log('-'.repeat(70));
   console.log(`${''.padEnd(40)}${totalWeight.toFixed(1)}`);
+}
+
+/**
+ * Mark audit findings as resolved.
+ *
+ * @param args - CLI arguments: index (1-based) or --all
+ * @param repoRoot - Repository root path
+ */
+export function cmdResolve(args: string[], repoRoot: string): void {
+  const subArgs = args.slice(1);
+  const resolveAll = subArgs.includes('--all');
+  const indexArg = subArgs.find(a => !a.startsWith('--'));
+
+  if (!resolveAll && !indexArg) {
+    console.error('Usage: canductor resolve <index> or canductor resolve --all');
+    process.exit(1);
+  }
+
+  const findings = readFindings(repoRoot, 'all');
+
+  if (resolveAll) {
+    resolveFindings(repoRoot, 'all');
+    console.log(`Resolved all ${findings.length} finding(s).`);
+    return;
+  }
+
+  const index = parseInt(indexArg!, 10);
+  if (isNaN(index) || index < 1 || index > findings.length) {
+    console.error(`Invalid index: ${indexArg}. Must be between 1 and ${findings.length}.`);
+    process.exit(1);
+  }
+
+  resolveFindings(repoRoot, [index - 1]);
+  console.log(`Resolved finding ${index}: [${findings[index - 1].category}] ${findings[index - 1].finding}`);
 }

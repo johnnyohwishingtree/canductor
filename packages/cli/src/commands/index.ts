@@ -14,7 +14,7 @@ import {
 import {
   cmdInit, cmdInject, cmdSuggest, cmdContext,
   cmdResultUpdate, cmdConfigCheck, cmdClean,
-  cmdSkillLint, cmdLayers,
+  cmdSkillLint, cmdLayers, cmdResolve,
 } from './utility.js';
 
 /**
@@ -47,6 +47,7 @@ export const commands = new Map<string, CommandFn>([
   ['skill-lint', cmdSkillLint],
   ['layers', cmdLayers],
   ['health', cmdHealth],
+  ['resolve', cmdResolve],
 ]);
 
 export {
@@ -55,5 +56,5 @@ export {
   cmdHistory, cmdInsights, cmdTasks, cmdReport, cmdHealth,
   cmdInit, cmdInject, cmdSuggest, cmdContext,
   cmdResultUpdate, cmdConfigCheck, cmdClean,
-  cmdSkillLint, cmdLayers,
+  cmdSkillLint, cmdLayers, cmdResolve,
 };
