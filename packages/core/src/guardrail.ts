@@ -9,6 +9,7 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import type { LayerConfig, LayerResult, GuardrailViolation, VerifyOptions } from './types.js';
+import { defaultTimeoutMs } from './layers.js';
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -47,6 +48,7 @@ export function runGuardrailLayer(layer: LayerConfig, repoRoot: string, options?
     };
   }
 
+  const timeout = layer.timeout_ms ?? defaultTimeoutMs(layer.type);
   const files = collectFiles(repoRoot, layer.include, layer.exclude ?? []);
   if (log) {
     log(`[${layer.name}] Scanning ${files.length} files`);
@@ -54,12 +56,25 @@ export function runGuardrailLayer(layer: LayerConfig, repoRoot: string, options?
       log(`[${layer.name}]   ${f}`);
     }
   }
-  const violations = scanFiles(files, layer.patterns, repoRoot);
+  const { violations, scannedCount, timedOut } = scanFilesWithTimeout(files, layer.patterns, repoRoot, start, timeout);
   if (log && violations.length > 0) {
     log(`[${layer.name}] Found ${violations.length} violations`);
     for (const v of violations) {
       log(`[${layer.name}]   ${v.file}:${v.line} — ${v.message} (matched: "${v.match}")`);
     }
+  }
+
+  if (timedOut) {
+    const usedTimeout = timeout ?? 0;
+    return {
+      name: layer.name,
+      type: 'guardrail',
+      pass: false,
+      score: 0,
+      errors: `Guardrail scan timed out after ${usedTimeout}ms (scanned ${scannedCount}/${files.length} files)`,
+      duration_ms: Date.now() - start,
+      timed_out: true,
+    };
   }
 
   const score = violations.length === 0
@@ -165,20 +180,28 @@ function matchGlob(filePath: string, glob: string): boolean {
 }
 
 /**
- * Scan files for pattern violations.
+ * Scan files for pattern violations, checking timeout after each file.
  */
-function scanFiles(
+function scanFilesWithTimeout(
   files: string[],
   patterns: Array<{ pattern: string; message: string }>,
-  repoRoot: string
-): GuardrailViolation[] {
+  repoRoot: string,
+  startTime: number,
+  timeout: number | undefined,
+): { violations: GuardrailViolation[]; scannedCount: number; timedOut: boolean } {
   const violations: GuardrailViolation[] = [];
+  let scannedCount = 0;
 
   for (const file of files) {
+    if (timeout !== undefined && Date.now() - startTime > timeout) {
+      return { violations, scannedCount, timedOut: true };
+    }
+
     let content: string;
     try {
       content = readFileSync(file, 'utf-8');
     } catch {
+      scannedCount++;
       continue; // Skip unreadable files
     }
 
@@ -206,7 +229,9 @@ function scanFiles(
         }
       }
     }
+
+    scannedCount++;
   }
 
-  return violations;
+  return { violations, scannedCount, timedOut: false };
 }

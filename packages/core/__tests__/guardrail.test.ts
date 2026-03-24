@@ -239,3 +239,51 @@ describe('validateGuardrailPatterns', () => {
     expect(errors).toHaveLength(2);
   });
 });
+
+// ---------------------------------------------------------------------------
+// runGuardrailLayer — timeout
+// ---------------------------------------------------------------------------
+describe('runGuardrailLayer timeout', () => {
+  it('returns timeout error when scanning exceeds timeout_ms', () => {
+    // Create many files to make scanning take measurable time
+    for (let i = 0; i < 100; i++) {
+      writeFile(`src/file${i}.ts`, `const x${i} = ${i};\n`.repeat(100));
+    }
+
+    const layer: LayerConfig = {
+      name: 'guardrail-slow',
+      type: 'guardrail',
+      include: ['**/*.ts'],
+      patterns: [{ pattern: 'const', message: 'found const' }],
+      weight: 1,
+      // Use a timeout of 0ms so it will always timeout after the first file check
+      timeout_ms: 0,
+    };
+
+    const result = runGuardrailLayer(layer, tempDir);
+
+    expect(result.pass).toBe(false);
+    expect(result.score).toBe(0);
+    expect(result.errors).toContain('timed out');
+    expect(result.timed_out).toBe(true);
+  });
+
+  it('completes scan within generous timeout', () => {
+    writeFile('src/app.ts', 'const x: any = 1;');
+
+    const layer: LayerConfig = {
+      name: 'guardrail-fast',
+      type: 'guardrail',
+      include: ['**/*.ts'],
+      patterns: [{ pattern: ': any', message: 'No any types' }],
+      weight: 1,
+      timeout_ms: 30000,
+    };
+
+    const result = runGuardrailLayer(layer, tempDir);
+
+    expect(result.pass).toBe(false);
+    expect(result.score).toBeLessThan(100);
+    expect(result.timed_out).toBeUndefined();
+  });
+});

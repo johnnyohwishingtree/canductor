@@ -85,6 +85,8 @@ export interface LayerResult {
   score: number;       // 0-100
   errors: string;
   duration_ms: number;
+  /** Whether this layer was killed due to exceeding timeout_ms. */
+  timed_out?: boolean;
 }
 
 /** Options for the verify() function. */

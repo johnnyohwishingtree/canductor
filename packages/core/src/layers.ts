@@ -65,6 +65,7 @@ export function runDeterministicLayer(layer: LayerConfig, options?: VerifyOption
         score: 0,
         errors: `Command timed out after ${usedTimeout}ms`,
         duration_ms: Date.now() - start,
+        timed_out: true,
       };
     }
     const fullOutput = (error.stdout ?? '') + (error.stderr ?? '');
@@ -86,13 +87,26 @@ export function runDeterministicLayer(layer: LayerConfig, options?: VerifyOption
 /** Run a screenshot-diff layer (capture + compare to baseline). */
 export function runScreenshotDiffLayer(layer: LayerConfig): LayerResult {
   const start = Date.now();
+  const timeout = layer.timeout_ms ?? defaultTimeoutMs(layer.type);
 
   // Step 1: Capture current screenshots
   if (layer.capture) {
     try {
-      execSync(layer.capture, { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] });
+      execSync(layer.capture, { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], timeout });
     } catch (err: unknown) {
-      const error = err as { stderr?: string };
+      const error = err as { stderr?: string; code?: string };
+      if (error.code === 'ETIMEDOUT') {
+        const usedTimeout = timeout ?? 0;
+        return {
+          name: layer.name,
+          type: 'screenshot-diff',
+          pass: false,
+          score: 0,
+          errors: `Screenshot capture timed out after ${usedTimeout}ms`,
+          duration_ms: Date.now() - start,
+          timed_out: true,
+        };
+      }
       return {
         name: layer.name,
         type: 'screenshot-diff',
