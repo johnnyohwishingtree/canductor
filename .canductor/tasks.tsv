@@ -25,3 +25,6 @@ test	.canductor/templates/test.md	#108	1	none	2026-03-24T07:07:42Z
 module	.canductor/templates/module.md	#109	1	none	2026-03-24T07:10:41Z
 module	.canductor/templates/module.md	#109	1	none	2026-03-24T07:10:41Z
 test	.canductor/templates/test.md	#109	1	none	2026-03-24T07:10:41Z
+refactor	.canductor/patterns/refactor.md	#110	1	none	2026-03-24T07:15:44Z
+module	.canductor/templates/module.md	#110	1	none	2026-03-24T07:15:44Z
+test	.canductor/templates/test.md	#110	1	none	2026-03-24T07:15:44Z

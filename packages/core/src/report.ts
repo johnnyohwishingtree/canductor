@@ -5,8 +5,9 @@
  * Suitable for posting as GitHub PR comments or CI output.
  */
 
-import { readResults, getStatus, getTrend } from './results.js';
-import type { PipelineStatus, TrendEntry } from './results.js';
+import { readResults } from './results.js';
+import { getStatus, getTrend } from './results-query.js';
+import type { PipelineStatus, TrendEntry } from './results-query.js';
 import type { ResultRow } from './types.js';
 
 /** Timing data extracted from layer scores. */
