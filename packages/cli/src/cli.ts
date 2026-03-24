@@ -42,6 +42,7 @@ import {
   listLayers,
   runLayer,
   generateInsights,
+  analyzeTaskTypes,
 } from '@canductor/core';
 import type { AgentReviewResult } from '@canductor/core';
 import { writeFileSync, existsSync, mkdirSync } from 'node:fs';
@@ -78,6 +79,7 @@ Usage:
   canductor config-check [--json]             Validate config file and policy expressions
   canductor clean [--force]                  Remove merged canductor branches
   canductor insights [--json]                 Show trajectory, correlations, and recommendations
+  canductor tasks                             Show task type performance
   canductor skill-lint                       Validate SKILL.md frontmatter
   canductor help                             Show this message
 `);
@@ -590,6 +592,42 @@ function cmdClean(): void {
   console.log(`\n${deleted}/${results.length} branch(es) deleted.`);
 }
 
+function cmdTasks(): void {
+  const analyses = analyzeTaskTypes(repoRoot);
+
+  if (analyses.length === 0) {
+    console.log('No task data yet.');
+    return;
+  }
+
+  console.log('Task Type Performance');
+  console.log('=====================');
+  console.log('');
+
+  // Column headers
+  const typeCol = 'Type'.padEnd(20);
+  const usesCol = 'Uses'.padStart(5);
+  const avgCol = 'Avg Cycles'.padStart(11);
+  const statusCol = 'Status';
+  console.log(`${typeCol} ${usesCol} ${avgCol}  ${statusCol}`);
+  console.log('-'.repeat(50));
+
+  for (const a of analyses) {
+    const typeName = a.task_type.padEnd(20);
+    const uses = String(a.total_uses).padStart(5);
+    const avg = String(a.avg_cycles).padStart(11);
+    let status: string;
+    if (a.converged) {
+      status = 'converged';
+    } else if (a.avg_cycles > 1) {
+      status = 'needs work';
+    } else {
+      status = 'good';
+    }
+    console.log(`${typeName} ${uses} ${avg}  ${status}`);
+  }
+}
+
 function cmdInsights(): void {
   const jsonMode = args.includes('--json');
   const insights = generateInsights(repoRoot);
@@ -814,6 +852,9 @@ async function main(): Promise<void> {
       break;
     case 'clean':
       cmdClean();
+      break;
+    case 'tasks':
+      cmdTasks();
       break;
     case 'insights':
       cmdInsights();
