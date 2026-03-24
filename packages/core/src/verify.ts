@@ -55,7 +55,10 @@ function buildSummary(results: LayerResult[], decision: string, wallClockMs: num
   for (const r of results) {
     const icon = r.pass ? 'PASS' : 'FAIL';
     const timedOutTag = r.timed_out ? ' (timed out)' : '';
-    lines.push(`  ${icon} ${r.name}: ${r.score}/100 (${r.duration_ms}ms)${timedOutTag}`);
+    const retryTag = r.retries_attempted && r.retries_attempted > 0
+      ? ` (retried ${r.retries_attempted}x)`
+      : '';
+    lines.push(`  ${icon} ${r.name}: ${r.score}/100 (${r.duration_ms}ms)${timedOutTag}${retryTag}`);
     if (r.errors) {
       lines.push(`       ${r.errors.split('\n')[0]}`);
     }

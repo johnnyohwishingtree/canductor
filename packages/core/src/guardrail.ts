@@ -9,7 +9,8 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import type { LayerConfig, LayerResult, GuardrailViolation, VerifyOptions } from './types.js';
-import { defaultTimeoutMs } from './layers.js';
+import { defaultTimeoutMs, defaultRetry } from './layers.js';
+import { execSync } from 'node:child_process';
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -49,6 +50,8 @@ export function runGuardrailLayer(layer: LayerConfig, repoRoot: string, options?
   }
 
   const timeout = layer.timeout_ms ?? defaultTimeoutMs(layer.type);
+  const maxRetries = layer.retry ?? defaultRetry(layer.type);
+  const retryDelay = layer.retry_delay_ms ?? 1000;
   const files = collectFiles(repoRoot, layer.include, layer.exclude ?? []);
   if (log) {
     log(`[${layer.name}] Scanning ${files.length} files`);
@@ -56,42 +59,73 @@ export function runGuardrailLayer(layer: LayerConfig, repoRoot: string, options?
       log(`[${layer.name}]   ${f}`);
     }
   }
-  const { violations, scannedCount, timedOut } = scanFilesWithTimeout(files, layer.patterns, repoRoot, start, timeout);
-  if (log && violations.length > 0) {
-    log(`[${layer.name}] Found ${violations.length} violations`);
-    for (const v of violations) {
-      log(`[${layer.name}]   ${v.file}:${v.line} — ${v.message} (matched: "${v.match}")`);
-    }
-  }
 
-  if (timedOut) {
-    const usedTimeout = timeout ?? 0;
+  // Retry loop — only retries on timeout, not on violations
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    if (attempt > 0 && retryDelay > 0) {
+      execSync(`sleep ${retryDelay / 1000}`, { stdio: 'ignore' });
+    }
+
+    const scanStart = attempt === 0 ? start : Date.now();
+    const { violations, scannedCount, timedOut } = scanFilesWithTimeout(files, layer.patterns, repoRoot, scanStart, timeout);
+
+    if (log && violations.length > 0) {
+      log(`[${layer.name}] Found ${violations.length} violations`);
+      for (const v of violations) {
+        log(`[${layer.name}]   ${v.file}:${v.line} — ${v.message} (matched: "${v.match}")`);
+      }
+    }
+
+    if (timedOut) {
+      // Only retry on timeout — not on violations
+      if (attempt < maxRetries) {
+        if (log) {
+          log(`[${layer.name}] attempt ${attempt + 1} timed out, retrying...`);
+        }
+        continue;
+      }
+      const usedTimeout = timeout ?? 0;
+      return {
+        name: layer.name,
+        type: 'guardrail',
+        pass: false,
+        score: 0,
+        errors: `Guardrail scan timed out after ${usedTimeout}ms (scanned ${scannedCount}/${files.length} files)`,
+        duration_ms: Date.now() - start,
+        timed_out: true,
+        retries_attempted: attempt,
+      };
+    }
+
+    // No timeout — return the result (violations are deterministic, no retry)
+    const score = violations.length === 0
+      ? 100
+      : Math.max(0, 100 - violations.length * 10);
+
+    const errors = violations
+      .map(v => `${v.file}:${v.line} — ${v.message} (matched: "${v.match}")`)
+      .join('\n');
+
     return {
       name: layer.name,
       type: 'guardrail',
-      pass: false,
-      score: 0,
-      errors: `Guardrail scan timed out after ${usedTimeout}ms (scanned ${scannedCount}/${files.length} files)`,
+      pass: violations.length === 0,
+      score,
+      errors,
       duration_ms: Date.now() - start,
-      timed_out: true,
+      retries_attempted: attempt,
     };
   }
 
-  const score = violations.length === 0
-    ? 100
-    : Math.max(0, 100 - violations.length * 10);
-
-  const errors = violations
-    .map(v => `${v.file}:${v.line} — ${v.message} (matched: "${v.match}")`)
-    .join('\n');
-
+  // Unreachable, but TypeScript needs it
   return {
     name: layer.name,
     type: 'guardrail',
-    pass: violations.length === 0,
-    score,
-    errors,
+    pass: false,
+    score: 0,
+    errors: 'Unexpected retry loop exit',
     duration_ms: Date.now() - start,
+    retries_attempted: maxRetries,
   };
 }
 

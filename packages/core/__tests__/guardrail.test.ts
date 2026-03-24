@@ -287,3 +287,71 @@ describe('runGuardrailLayer timeout', () => {
     expect(result.timed_out).toBeUndefined();
   });
 });
+
+// ---------------------------------------------------------------------------
+// runGuardrailLayer — retry
+// ---------------------------------------------------------------------------
+describe('runGuardrailLayer retry', () => {
+  it('retries on timeout', () => {
+    // Create many files to make scanning take measurable time
+    for (let i = 0; i < 100; i++) {
+      writeFile(`src/file${i}.ts`, `const x${i} = ${i};\n`.repeat(100));
+    }
+
+    const layer: LayerConfig = {
+      name: 'guardrail-retry-timeout',
+      type: 'guardrail',
+      include: ['**/*.ts'],
+      patterns: [{ pattern: 'const', message: 'found const' }],
+      weight: 1,
+      timeout_ms: 0,
+      retry: 1,
+      retry_delay_ms: 10,
+    };
+
+    const result = runGuardrailLayer(layer, tempDir);
+
+    expect(result.pass).toBe(false);
+    expect(result.timed_out).toBe(true);
+    expect(result.retries_attempted).toBe(1);
+  });
+
+  it('does NOT retry on violations (violations are deterministic)', () => {
+    writeFile('src/app.ts', 'const x: any = 1;');
+
+    const layer: LayerConfig = {
+      name: 'guardrail-no-retry-violations',
+      type: 'guardrail',
+      include: ['**/*.ts'],
+      patterns: [{ pattern: ': any', message: 'No any types' }],
+      weight: 1,
+      retry: 2,
+      retry_delay_ms: 10,
+    };
+
+    const result = runGuardrailLayer(layer, tempDir);
+
+    expect(result.pass).toBe(false);
+    expect(result.retries_attempted).toBe(0);
+    expect(result.timed_out).toBeUndefined();
+  });
+
+  it('sets retries_attempted to 0 when scan completes without timeout', () => {
+    writeFile('src/clean.ts', 'const x = 1;');
+
+    const layer: LayerConfig = {
+      name: 'guardrail-no-retry',
+      type: 'guardrail',
+      include: ['**/*.ts'],
+      patterns: [{ pattern: 'forbidden_pattern_xyz', message: 'not found' }],
+      weight: 1,
+      retry: 3,
+      retry_delay_ms: 10,
+    };
+
+    const result = runGuardrailLayer(layer, tempDir);
+
+    expect(result.pass).toBe(true);
+    expect(result.retries_attempted).toBe(0);
+  });
+});

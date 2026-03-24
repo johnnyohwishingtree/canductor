@@ -559,6 +559,69 @@ describe('runScreenshotDiffLayer timeout', () => {
 });
 
 // ---------------------------------------------------------------------------
+// runScreenshotDiffLayer — retry
+// ---------------------------------------------------------------------------
+describe('runScreenshotDiffLayer retry', () => {
+  it('retries capture command on failure and succeeds', () => {
+    const flagFile = join(TEST_DIR, `screenshot-retry-flag-${Date.now()}`);
+    const layer: LayerConfig = {
+      name: 'visual-retry',
+      type: 'screenshot-diff',
+      baseline: join(TEST_DIR, 'nonexistent'),
+      capture: `test -f ${flagFile} && echo ok || (touch ${flagFile} && exit 1)`,
+      weight: 1,
+      retry: 2,
+      retry_delay_ms: 10,
+    };
+
+    const result = runScreenshotDiffLayer(layer);
+
+    // No baseline → first-run pass, but capture succeeded on retry
+    expect(result.pass).toBe(true);
+    expect(result.retries_attempted).toBe(1);
+  });
+
+  it('retries capture on timeout', () => {
+    const baselineDir = join(TEST_DIR, 'baseline-retry');
+    mkdirSync(baselineDir, { recursive: true });
+
+    const layer: LayerConfig = {
+      name: 'visual-timeout-retry',
+      type: 'screenshot-diff',
+      baseline: baselineDir,
+      capture: 'sleep 10',
+      weight: 1,
+      timeout_ms: 100,
+      retry: 1,
+      retry_delay_ms: 10,
+    };
+
+    const result = runScreenshotDiffLayer(layer);
+
+    expect(result.pass).toBe(false);
+    expect(result.timed_out).toBe(true);
+    expect(result.retries_attempted).toBe(1);
+  });
+
+  it('sets retries_attempted to 0 when no retry needed', () => {
+    const layer: LayerConfig = {
+      name: 'visual-no-retry',
+      type: 'screenshot-diff',
+      baseline: join(TEST_DIR, 'nonexistent'),
+      capture: 'echo done',
+      weight: 1,
+      retry: 2,
+      retry_delay_ms: 10,
+    };
+
+    const result = runScreenshotDiffLayer(layer);
+
+    expect(result.pass).toBe(true);
+    expect(result.retries_attempted).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // defaultRetry
 // ---------------------------------------------------------------------------
 describe('defaultRetry', () => {
