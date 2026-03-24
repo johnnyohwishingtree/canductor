@@ -8,6 +8,7 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import type { ResultRow, VerifyResult, QualityContext, CanductorConfig, StallDetection } from './types.js';
+import { summarizeLearnings } from './learnings.js';
 
 const RESULTS_PATH = '.canductor/results.tsv';
 const HEADER = 'ref\ttimestamp\tcomposite_score\tdecision\tlayer_scores\tstatus\tdescription';
@@ -521,6 +522,13 @@ export function generatePromptContext(repoRoot: string): string {
     for (const stall of ctx.stalls) {
       lines.push(`- ${stall.suggestion}`);
     }
+    lines.push('');
+  }
+
+  // Include learnings from past failures
+  const learningsSummary = summarizeLearnings(repoRoot);
+  if (learningsSummary) {
+    lines.push(learningsSummary);
     lines.push('');
   }
 

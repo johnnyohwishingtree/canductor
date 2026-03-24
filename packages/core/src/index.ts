@@ -9,6 +9,8 @@ export { evaluateExpression, evaluateAllPolicies, buildPolicyContext } from './p
 export type { PolicyContext } from './policy.js';
 export { runAgentReview, buildReviewPrompt, parseReviewJson } from './agent-review.js';
 export { injectContext, suggestRuleImprovements } from './feedback.js';
+export { appendLearning, recordFix, readLearnings, summarizeLearnings } from './learnings.js';
+export type { Learning } from './learnings.js';
 export { detectToolchain, scaffoldRubric, runFirstVerification } from './scaffold.js';
 export { parseSkillFrontmatter, validateSkillFrontmatter, discoverSkills, lintSkills } from './skill-lint.js';
 export { runGuardrailLayer } from './guardrail.js';

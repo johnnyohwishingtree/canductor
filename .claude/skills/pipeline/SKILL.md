@@ -168,7 +168,27 @@ This runs all layers (typecheck, tests, code_quality) with your self-review scor
 
 Read the decision:
 - **`auto_merge`**: proceed to Step 6.
-- **`block`** or **`human_review`**: read the error summary, fix the issues, and loop back to the top of Step 5. This counts as your next attempt.
+- **`block`** or **`human_review`**: **log what failed**, fix the issues, and loop back to the top of Step 5. This counts as your next attempt.
+
+**When verification fails, log the failure before fixing:**
+```bash
+# Append what went wrong to the learnings log
+# This persists across sessions — future pipeline runs read this to avoid repeating mistakes
+cat >> .canductor/learnings.md << LEARNING
+
+### #$NUMBER, attempt $ATTEMPT ($(date -u +"%Y-%m-%dT%H:%M:%SZ"))
+**Failed:** <one-line summary of what the verification output said was wrong>
+LEARNING
+```
+
+After fixing and re-verifying successfully, record how you fixed it:
+```bash
+cat >> .canductor/learnings.md << FIX
+**Fix:** <one-line summary of what you changed to fix it>
+FIX
+```
+
+Commit the learnings file along with your code changes. The next `canductor inject CLAUDE.md` will read these learnings and surface the patterns so future sessions avoid the same mistakes.
 
 **You have up to 6 attempts.** Each attempt: fix -> typecheck -> test -> self-review -> canductor verify with --review-json. Use the error output from each failed verify to guide your fixes.
 

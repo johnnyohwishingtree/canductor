@@ -55,6 +55,7 @@ Stories list which patterns and templates to follow. Patterns reference template
 | File | Purpose |
 |------|---------|
 | `.canductor/config.yaml` | Verification layer definitions + policy |
-| `.canductor/results.tsv` | Verification history log |
+| `.canductor/results.tsv` | Verification history log (scores) |
+| `.canductor/learnings.md` | What went wrong during verify and how it was fixed (narrative) |
 
-<!-- pipeline:index-version:1 -->
+<!-- pipeline:index-version:2 -->
