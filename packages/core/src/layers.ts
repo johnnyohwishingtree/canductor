@@ -4,15 +4,17 @@
 
 import { execSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import type { LayerConfig, LayerResult, AgentReviewResult, SelfReviewPrompt } from './types.js';
+import type { LayerConfig, LayerResult, AgentReviewResult, SelfReviewPrompt, VerifyOptions } from './types.js';
 import { runAgentReview, buildReviewPrompt } from './agent-review.js';
 import { compareScreenshots } from './screenshot.js';
 import { runGuardrailLayer } from './guardrail.js';
 
 /** Run a deterministic layer (shell command, pass/fail). */
-export function runDeterministicLayer(layer: LayerConfig): LayerResult {
+export function runDeterministicLayer(layer: LayerConfig, options?: VerifyOptions): LayerResult {
   const start = Date.now();
   const cmd = layer.run;
+  const log = options?.verbose ? (options.logger ?? console.log) : undefined;
+
   if (!cmd) {
     return {
       name: layer.name,
@@ -25,7 +27,10 @@ export function runDeterministicLayer(layer: LayerConfig): LayerResult {
   }
 
   try {
-    execSync(cmd, { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] });
+    const stdout = execSync(cmd, { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] });
+    if (log && stdout) {
+      log(`[${layer.name}] stdout:\n${stdout}`);
+    }
     return {
       name: layer.name,
       type: 'deterministic',
@@ -36,7 +41,11 @@ export function runDeterministicLayer(layer: LayerConfig): LayerResult {
     };
   } catch (err: unknown) {
     const error = err as { stdout?: string; stderr?: string };
-    const output = ((error.stdout ?? '') + (error.stderr ?? '')).slice(-2000);
+    const fullOutput = (error.stdout ?? '') + (error.stderr ?? '');
+    if (log) {
+      log(`[${layer.name}] stdout+stderr:\n${fullOutput}`);
+    }
+    const output = fullOutput.slice(-2000);
     return {
       name: layer.name,
       type: 'deterministic',
@@ -187,17 +196,18 @@ export function getAgentReviewPrompt(layer: LayerConfig): SelfReviewPrompt | nul
 export async function runLayer(
   layer: LayerConfig,
   selfReviewResult?: AgentReviewResult,
-  repoRoot?: string
+  repoRoot?: string,
+  options?: VerifyOptions
 ): Promise<LayerResult> {
   switch (layer.type) {
     case 'deterministic':
-      return runDeterministicLayer(layer);
+      return runDeterministicLayer(layer, options);
     case 'screenshot-diff':
       return runScreenshotDiffLayer(layer);
     case 'agent-review':
       return runAgentReviewLayer(layer, selfReviewResult);
     case 'guardrail':
-      return runGuardrailLayer(layer, repoRoot ?? process.cwd());
+      return runGuardrailLayer(layer, repoRoot ?? process.cwd(), options);
     default:
       return {
         name: layer.name,

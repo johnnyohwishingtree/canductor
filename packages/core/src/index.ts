@@ -25,6 +25,7 @@ export type {
   LayerConfig,
   PolicyConfig,
   LayerResult,
+  VerifyOptions,
   VerifyResult,
   ResultRow,
   QualityContext,

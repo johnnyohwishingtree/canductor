@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { computeCompositeScore, evaluatePolicy, verify } from '../src/verify.js';
-import type { CanductorConfig, LayerResult, AgentReviewResult } from '../src/types.js';
+import type { CanductorConfig, LayerResult, AgentReviewResult, VerifyOptions } from '../src/types.js';
 
 const baseConfig: CanductorConfig = {
   version: 1,
@@ -491,5 +491,155 @@ describe('verify() guardrail repoRoot threading', () => {
     expect(result.layers[0].pass).toBe(true);
     expect(result.layers[0].score).toBe(100);
     expect(result.decision).toBe('auto_merge');
+  });
+});
+
+describe('verify() verbose mode', () => {
+  it('logs full stdout via logger callback when verbose is true', async () => {
+    const logged: string[] = [];
+    const config: CanductorConfig = {
+      version: 1,
+      layers: {
+        echo_test: {
+          name: 'echo_test',
+          type: 'deterministic',
+          run: 'echo hello-verbose',
+          weight: 1.0,
+        },
+      },
+      policy: {
+        auto_merge: 'all_pass',
+        human_review: 'any_agent_review_fail',
+        block: 'any_deterministic_fail',
+      },
+    };
+
+    const options: VerifyOptions = {
+      verbose: true,
+      logger: (msg: string) => logged.push(msg),
+    };
+
+    const result = await verify('verbose-ref', config, undefined, undefined, options);
+
+    expect(result.decision).toBe('auto_merge');
+    expect(logged.length).toBeGreaterThan(0);
+    expect(logged.some(m => m.includes('hello-verbose'))).toBe(true);
+  });
+
+  it('does not call logger when verbose is false', async () => {
+    const logged: string[] = [];
+    const config: CanductorConfig = {
+      version: 1,
+      layers: {
+        echo_quiet: {
+          name: 'echo_quiet',
+          type: 'deterministic',
+          run: 'echo quiet-output',
+          weight: 1.0,
+        },
+      },
+      policy: {
+        auto_merge: 'all_pass',
+        human_review: 'any_agent_review_fail',
+        block: 'any_deterministic_fail',
+      },
+    };
+
+    const options: VerifyOptions = {
+      verbose: false,
+      logger: (msg: string) => logged.push(msg),
+    };
+
+    await verify('quiet-ref', config, undefined, undefined, options);
+
+    expect(logged).toHaveLength(0);
+  });
+
+  it('logs full stdout+stderr on failure when verbose is true', async () => {
+    const logged: string[] = [];
+    const config: CanductorConfig = {
+      version: 1,
+      layers: {
+        fail_verbose: {
+          name: 'fail_verbose',
+          type: 'deterministic',
+          run: 'echo fail-output && exit 1',
+          weight: 1.0,
+        },
+      },
+      policy: {
+        auto_merge: 'all_pass',
+        human_review: 'any_agent_review_fail',
+        block: 'any_deterministic_fail',
+      },
+    };
+
+    const options: VerifyOptions = {
+      verbose: true,
+      logger: (msg: string) => logged.push(msg),
+    };
+
+    const result = await verify('fail-ref', config, undefined, undefined, options);
+
+    expect(result.decision).toBe('block');
+    expect(logged.some(m => m.includes('fail-output'))).toBe(true);
+  });
+
+  it('truncates output in non-verbose mode for large output', async () => {
+    // Generate output > 2000 chars
+    const config: CanductorConfig = {
+      version: 1,
+      layers: {
+        big_output: {
+          name: 'big_output',
+          type: 'deterministic',
+          run: 'python3 -c "print(\'x\' * 3000)" && exit 1',
+          weight: 1.0,
+        },
+      },
+      policy: {
+        auto_merge: 'all_pass',
+        human_review: 'any_agent_review_fail',
+        block: 'any_deterministic_fail',
+      },
+    };
+
+    const result = await verify('trunc-ref', config);
+
+    expect(result.layers[0].pass).toBe(false);
+    expect(result.layers[0].errors.length).toBeLessThanOrEqual(2000);
+  });
+
+  it('defaults logger to console.log when verbose is true and no logger provided', async () => {
+    const originalLog = console.log;
+    const logged: string[] = [];
+    console.log = (msg: string) => logged.push(msg);
+
+    try {
+      const config: CanductorConfig = {
+        version: 1,
+        layers: {
+          default_log: {
+            name: 'default_log',
+            type: 'deterministic',
+            run: 'echo default-logger-test',
+            weight: 1.0,
+          },
+        },
+        policy: {
+          auto_merge: 'all_pass',
+          human_review: 'any_agent_review_fail',
+          block: 'any_deterministic_fail',
+        },
+      };
+
+      const options: VerifyOptions = { verbose: true };
+
+      await verify('default-log-ref', config, undefined, undefined, options);
+
+      expect(logged.some(m => m.includes('default-logger-test'))).toBe(true);
+    } finally {
+      console.log = originalLog;
+    }
   });
 });
