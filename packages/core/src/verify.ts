@@ -50,7 +50,7 @@ export function evaluatePolicy(
 }
 
 /** Build a human-readable summary of the verification. */
-function buildSummary(results: LayerResult[], decision: string): string {
+function buildSummary(results: LayerResult[], decision: string, wallClockMs: number): string {
   const lines: string[] = [];
   for (const r of results) {
     const icon = r.pass ? 'PASS' : 'FAIL';
@@ -59,6 +59,10 @@ function buildSummary(results: LayerResult[], decision: string): string {
       lines.push(`       ${r.errors.split('\n')[0]}`);
     }
   }
+  const sequentialMs = results.reduce((sum, r) => sum + r.duration_ms, 0);
+  const speedup = sequentialMs > 0 ? sequentialMs / wallClockMs : 1;
+  lines.push('');
+  lines.push(`  Wall clock: ${wallClockMs}ms (${speedup.toFixed(1)}x speedup vs sequential ${sequentialMs}ms)`);
   return `Decision: ${decision}\n${lines.join('\n')}`;
 }
 
@@ -114,7 +118,7 @@ export async function verify(
   const wallClockMs = Date.now() - startTime;
   const compositeScore = computeCompositeScore(results, config);
   const decision = evaluatePolicy(results, compositeScore, config);
-  const summary = buildSummary(results, decision);
+  const summary = buildSummary(results, decision, wallClockMs);
 
   return {
     ref,

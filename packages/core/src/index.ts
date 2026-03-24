@@ -15,7 +15,7 @@ export { detectToolchain, scaffoldRubric, runFirstVerification } from './scaffol
 export { parseSkillFrontmatter, validateSkillFrontmatter, discoverSkills, lintSkills } from './skill-lint.js';
 export { runGuardrailLayer, validateGuardrailPatterns } from './guardrail.js';
 export { generateReport } from './report.js';
-export type { ReportData } from './report.js';
+export type { ReportData, TimingData } from './report.js';
 export { listStaleBranches, deleteBranches } from './clean.js';
 export type { StaleBranch } from './clean.js';
 export { appendTaskResult, readTaskResults, analyzeTaskTypes, getOptimizationTargets, resolveGuidedBy, summarizeTaskPerformance } from './tasks.js';

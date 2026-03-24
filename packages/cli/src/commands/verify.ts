@@ -86,11 +86,14 @@ export async function cmdVerify(args: string[], repoRoot: string): Promise<void>
   const thresholdPassed = threshold === null || result.composite_score >= threshold;
 
   if (jsonMode) {
+    const sequentialMs = result.layers.reduce((sum, l) => sum + l.duration_ms, 0);
     const output: Record<string, unknown> = {
       score: result.composite_score,
       decision: result.decision,
       summary: result.summary,
       passed: result.decision !== 'block' && thresholdPassed,
+      wall_clock_ms: result.wall_clock_ms,
+      sequential_ms: sequentialMs,
     };
     if (threshold !== null) {
       output.threshold = threshold;
