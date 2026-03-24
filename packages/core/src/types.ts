@@ -32,6 +32,8 @@ export interface LayerConfig {
   patterns?: GuardrailPattern[];
   /** Weight for composite scoring (0-1). */
   weight: number;
+  /** Whether this layer can run in parallel with others. Defaults to true for deterministic/guardrail. */
+  parallel?: boolean;
 }
 
 /** A pattern to match in guardrail scanning. */
@@ -97,6 +99,8 @@ export interface VerifyResult {
   decision: 'auto_merge' | 'human_review' | 'block';
   /** Human-readable summary. */
   summary: string;
+  /** Wall-clock time for the entire verification run in milliseconds. */
+  wall_clock_ms: number;
 }
 
 /** A row in the results log (.canductor/results.tsv). */

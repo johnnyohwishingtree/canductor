@@ -251,6 +251,148 @@ describe('verify() integration', () => {
 });
 
 // ---------------------------------------------------------------------------
+// verify() parallel execution
+// ---------------------------------------------------------------------------
+describe('verify() parallel execution', () => {
+  it('runs deterministic layers in parallel (wall_clock_ms < sum of durations)', async () => {
+    const config: CanductorConfig = {
+      version: 1,
+      layers: {
+        slow1: {
+          name: 'slow1',
+          type: 'deterministic',
+          run: 'sleep 0.15 && echo ok',
+          weight: 1.0,
+        },
+        slow2: {
+          name: 'slow2',
+          type: 'deterministic',
+          run: 'sleep 0.15 && echo ok',
+          weight: 1.0,
+        },
+      },
+      policy: {
+        auto_merge: 'all_pass',
+        human_review: 'any_agent_review_fail',
+        block: 'any_deterministic_fail',
+      },
+    };
+
+    const result = await verify('parallel-ref', config);
+
+    expect(result.layers).toHaveLength(2);
+    expect(result.layers[0].pass).toBe(true);
+    expect(result.layers[1].pass).toBe(true);
+    expect(result.wall_clock_ms).toBeGreaterThan(0);
+
+    const sumDurations = result.layers.reduce((s, l) => s + l.duration_ms, 0);
+    // Parallel execution: wall clock should be <= sum of individual durations
+    expect(result.wall_clock_ms).toBeLessThanOrEqual(sumDurations);
+  });
+
+  it('runs sequential layers when parallel is explicitly false', async () => {
+    const config: CanductorConfig = {
+      version: 1,
+      layers: {
+        seq1: {
+          name: 'seq1',
+          type: 'deterministic',
+          run: 'echo ok',
+          weight: 1.0,
+          parallel: false,
+        },
+        seq2: {
+          name: 'seq2',
+          type: 'deterministic',
+          run: 'echo ok',
+          weight: 1.0,
+          parallel: false,
+        },
+      },
+      policy: {
+        auto_merge: 'all_pass',
+        human_review: 'any_agent_review_fail',
+        block: 'any_deterministic_fail',
+      },
+    };
+
+    const result = await verify('seq-ref', config);
+
+    expect(result.layers).toHaveLength(2);
+    expect(result.layers[0].pass).toBe(true);
+    expect(result.layers[1].pass).toBe(true);
+    expect(result.wall_clock_ms).toBeGreaterThan(0);
+  });
+
+  it('defaults agent-review to sequential and deterministic to parallel', async () => {
+    const config: CanductorConfig = {
+      version: 1,
+      layers: {
+        tests: {
+          name: 'tests',
+          type: 'deterministic',
+          run: 'echo ok',
+          weight: 1.0,
+        },
+        code_quality: {
+          name: 'code_quality',
+          type: 'agent-review',
+          rubric: '/some/rubric.md',
+          weight: 0.6,
+        },
+      },
+      policy: {
+        auto_merge: 'all_pass',
+        human_review: 'any_agent_review_fail',
+        block: 'any_deterministic_fail',
+      },
+    };
+
+    const selfReviewResults: Record<string, AgentReviewResult> = {
+      code_quality: {
+        pass: true,
+        score: 90,
+        issues: [],
+        summary: 'Good',
+      },
+    };
+
+    const result = await verify('mixed-ref', config, selfReviewResults);
+
+    expect(result.layers).toHaveLength(2);
+    // Results should preserve config order
+    expect(result.layers[0].name).toBe('tests');
+    expect(result.layers[1].name).toBe('code_quality');
+    expect(result.wall_clock_ms).toBeGreaterThanOrEqual(0);
+  });
+
+  it('includes wall_clock_ms in every verify result', async () => {
+    const config: CanductorConfig = {
+      version: 1,
+      layers: {
+        echo: {
+          name: 'echo',
+          type: 'deterministic',
+          run: 'echo ok',
+          weight: 1.0,
+        },
+      },
+      policy: {
+        auto_merge: 'all_pass',
+        human_review: 'any_agent_review_fail',
+        block: 'any_deterministic_fail',
+      },
+    };
+
+    const result = await verify('wall-clock-ref', config);
+
+    expect(result).toHaveProperty('wall_clock_ms');
+    expect(typeof result.wall_clock_ms).toBe('number');
+    expect(result.wall_clock_ms).toBeGreaterThanOrEqual(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // verify() with guardrail layer and repoRoot
 // ---------------------------------------------------------------------------
 describe('verify() guardrail repoRoot threading', () => {

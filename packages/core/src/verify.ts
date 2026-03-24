@@ -70,20 +70,48 @@ function buildSummary(results: LayerResult[], decision: string): string {
  * @param selfReviewResults - Optional map of layer name → pre-evaluated agent review result.
  *   Used in self-review mode to inject results from the parent Claude session.
  */
+/** Determine whether a layer should run in parallel based on its config. */
+function isParallelLayer(layerConfig: import('./types.js').LayerConfig): boolean {
+  if (layerConfig.parallel !== undefined) return layerConfig.parallel;
+  return layerConfig.type === 'deterministic' || layerConfig.type === 'guardrail';
+}
+
 export async function verify(
   ref: string,
   config: CanductorConfig,
   selfReviewResults?: Record<string, AgentReviewResult>,
   repoRoot?: string
 ): Promise<VerifyResult> {
-  const results: LayerResult[] = [];
+  const startTime = Date.now();
 
-  for (const [name, layerConfig] of Object.entries(config.layers)) {
+  const entries = Object.entries(config.layers);
+  const parallelEntries = entries.filter(([, lc]) => isParallelLayer(lc));
+  const sequentialEntries = entries.filter(([, lc]) => !isParallelLayer(lc));
+
+  // Run parallel layers concurrently
+  const parallelResults = await Promise.all(
+    parallelEntries.map(([name, layerConfig]) => {
+      const reviewResult = selfReviewResults?.[name];
+      return runLayer({ ...layerConfig, name }, reviewResult, repoRoot);
+    })
+  );
+
+  // Run sequential layers in order
+  const sequentialResults: LayerResult[] = [];
+  for (const [name, layerConfig] of sequentialEntries) {
     const reviewResult = selfReviewResults?.[name];
     const result = await runLayer({ ...layerConfig, name }, reviewResult, repoRoot);
-    results.push(result);
+    sequentialResults.push(result);
   }
 
+  // Combine results preserving original config order
+  const resultMap = new Map<string, LayerResult>();
+  for (const r of [...parallelResults, ...sequentialResults]) {
+    resultMap.set(r.name, r);
+  }
+  const results = entries.map(([name]) => resultMap.get(name)!);
+
+  const wallClockMs = Date.now() - startTime;
   const compositeScore = computeCompositeScore(results, config);
   const decision = evaluatePolicy(results, compositeScore, config);
   const summary = buildSummary(results, decision);
@@ -95,5 +123,6 @@ export async function verify(
     composite_score: compositeScore,
     decision,
     summary,
+    wall_clock_ms: wallClockMs,
   };
 }
