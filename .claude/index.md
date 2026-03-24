@@ -39,6 +39,7 @@ Read this file first. It maps every artifact in the pipeline system. Only read i
 |-------|---------|------------|
 | `skills/pipeline/SKILL.md` | Autonomous story loop — merge, implement, verify, push, plan | `/pipeline` |
 | `skills/canductor-verify/SKILL.md` | Run quality verification on the current branch | `/canductor-verify` |
+| `skills/audit/SKILL.md` | Codebase health audit — finds drift, dead code, creates fix epic | `/audit` |
 
 ## Dependency Graph
 
