@@ -9,6 +9,8 @@
 - [ ] <Observable outcome, not just "implementation complete">
 - [ ] <Another observable outcome>
 - [ ] All new functions have tests (happy path + at least one error path)
+- [ ] No source module exceeds 500 lines — split if needed
+- [ ] All references in `.claude/index.md` and other `.md` files point to files that exist
 - [ ] `pnpm typecheck` passes with zero errors
 - [ ] `pnpm test` passes with all tests green
 
@@ -57,4 +59,4 @@ None / Depends on #<number>
 
 <Any specific things canductor verify should check for this story. Leave blank if standard verification is sufficient.>
 
-<!-- canductor:story-template-version:3 -->
+<!-- canductor:story-template-version:4 -->
