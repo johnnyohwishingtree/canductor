@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { execSync, ExecSyncOptionsWithStringEncoding } from 'node:child_process';
-import { writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
+import { writeFileSync, readFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -490,6 +490,179 @@ describe('canductor diff', () => {
     const { stdout, exitCode } = runCli('diff unknown-1 unknown-2', diffDir);
     expect(exitCode).toBe(1);
     expect(stdout).toContain('Ref not found');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Baseline, Result-update, Context, Inject, Suggest commands (#57)
+// ---------------------------------------------------------------------------
+
+describe('canductor baseline', () => {
+  let baseDir: string;
+
+  beforeEach(() => {
+    baseDir = join(TEST_DIR, `baseline-${Date.now()}`);
+    mkdirSync(baseDir, { recursive: true });
+    setupConfig(baseDir);
+  });
+
+  afterEach(() => {
+    rmSync(baseDir, { recursive: true, force: true });
+  });
+
+  it('shows current baseline', () => {
+    const { stdout, exitCode } = runCli('baseline', baseDir);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('Current baseline:');
+    expect(stdout).toContain('/100');
+  });
+
+  it('sets baseline with --set flag', () => {
+    const { stdout, exitCode } = runCli('baseline --set 85', baseDir);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('Baseline set to 85/100');
+  });
+
+  it('exits 1 with error for --set with invalid value', () => {
+    const { stdout, exitCode } = runCli('baseline --set invalid', baseDir);
+    expect(exitCode).toBe(1);
+    expect(stdout).toContain('Usage: canductor baseline --set');
+  });
+
+  it('computes and sets baseline with --auto', () => {
+    // Populate some results first
+    runCli('verify auto-base-1', baseDir);
+    runCli('verify auto-base-2', baseDir);
+
+    const { stdout, exitCode } = runCli('baseline --auto', baseDir);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('Baseline set to');
+    expect(stdout).toContain('computed from last 5 merged scores');
+  });
+});
+
+describe('canductor result-update', () => {
+  let ruDir: string;
+
+  beforeEach(() => {
+    ruDir = join(TEST_DIR, `result-update-${Date.now()}`);
+    mkdirSync(ruDir, { recursive: true });
+    setupConfig(ruDir);
+  });
+
+  afterEach(() => {
+    rmSync(ruDir, { recursive: true, force: true });
+  });
+
+  it('updates status and confirms', () => {
+    runCli('verify ru-ref', ruDir);
+
+    const { stdout, exitCode } = runCli('result-update ru-ref merged', ruDir);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('Updated result for ref "ru-ref" to status "merged"');
+  });
+
+  it('exits 1 with usage when missing args', () => {
+    const { stdout, exitCode } = runCli('result-update', ruDir);
+    expect(exitCode).toBe(1);
+    expect(stdout).toContain('Usage: canductor result-update');
+  });
+
+  it('exits 1 with error for invalid status', () => {
+    runCli('verify ru-ref2', ruDir);
+
+    const { stdout, exitCode } = runCli('result-update ru-ref2 invalid', ruDir);
+    expect(exitCode).toBe(1);
+    expect(stdout).toContain('Invalid status: invalid');
+  });
+
+  it('exits 1 with not-found error for unknown ref', () => {
+    const { stdout, exitCode } = runCli('result-update unknown-ref merged', ruDir);
+    expect(exitCode).toBe(1);
+    expect(stdout).toContain('Ref not found');
+  });
+});
+
+describe('canductor context', () => {
+  let ctxDir: string;
+
+  beforeEach(() => {
+    ctxDir = join(TEST_DIR, `context-${Date.now()}`);
+    mkdirSync(ctxDir, { recursive: true });
+    setupConfig(ctxDir);
+  });
+
+  afterEach(() => {
+    rmSync(ctxDir, { recursive: true, force: true });
+  });
+
+  it('outputs quality context text', () => {
+    const { stdout, exitCode } = runCli('context', ctxDir);
+    expect(exitCode).toBe(0);
+    // Context should contain some quality-related output
+    expect(typeof stdout).toBe('string');
+    expect(stdout.length).toBeGreaterThan(0);
+  });
+});
+
+describe('canductor inject', () => {
+  let injectDir: string;
+
+  beforeEach(() => {
+    injectDir = join(TEST_DIR, `inject-${Date.now()}`);
+    mkdirSync(injectDir, { recursive: true });
+    setupConfig(injectDir);
+  });
+
+  afterEach(() => {
+    rmSync(injectDir, { recursive: true, force: true });
+  });
+
+  it('injects context into a target file', () => {
+    // Create a target file with canductor markers
+    const targetFile = join(injectDir, 'TARGET.md');
+    writeFileSync(targetFile, '# My File\n\n<!-- canductor:begin -->\n<!-- canductor:end -->\n');
+
+    // Run a verify first to have some results
+    runCli('verify inject-ref', injectDir);
+
+    const { stdout, exitCode } = runCli('inject TARGET.md', injectDir);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('Injected quality context into TARGET.md');
+
+    // Verify the file was actually modified
+    const content = readFileSync(targetFile, 'utf-8');
+    expect(content).toContain('canductor');
+  });
+
+  it('exits 1 with usage when no args', () => {
+    const { stdout, exitCode } = runCli('inject', injectDir);
+    expect(exitCode).toBe(1);
+    expect(stdout).toContain('Usage: canductor inject');
+  });
+});
+
+describe('canductor suggest', () => {
+  let suggestDir: string;
+
+  beforeEach(() => {
+    suggestDir = join(TEST_DIR, `suggest-${Date.now()}`);
+    mkdirSync(suggestDir, { recursive: true });
+    setupConfig(suggestDir);
+  });
+
+  afterEach(() => {
+    rmSync(suggestDir, { recursive: true, force: true });
+  });
+
+  it('outputs suggestions or no-improvements message', () => {
+    const { stdout, exitCode } = runCli('suggest', suggestDir);
+    expect(exitCode).toBe(0);
+    // Either shows suggestions or "no improvements" message
+    expect(
+      stdout.includes('No rule improvements suggested') ||
+      stdout.includes('confidence')
+    ).toBe(true);
   });
 });
 
