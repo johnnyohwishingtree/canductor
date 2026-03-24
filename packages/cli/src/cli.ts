@@ -52,6 +52,7 @@ Usage:
   canductor verify [ref]                     Run all layers, log result, print decision
   canductor verify [ref] --self-review       Output review prompt for agent-review layers (no API key needed)
   canductor verify [ref] --review-json <j>   Use pre-evaluated review JSON for agent-review layers
+  canductor verify [ref] --exit-code=N       Exit 1 if score < N (use "auto" for baseline)
   canductor score [ref]                      Run layers, print composite score only
   canductor status [--json]                   Show pipeline health overview
   canductor trend [--last N] [--json]        Show quality trend over last N results (default 10)
@@ -148,6 +149,7 @@ async function cmdVerify(): Promise<void> {
   const jsonMode = args.includes('--json');
   const selfReviewMode = args.includes('--self-review');
   const reviewJsonIdx = args.indexOf('--review-json');
+  const exitCodeArg = args.find(a => a.startsWith('--exit-code='));
   const config = loadConfig(repoRoot);
 
   // Self-review mode: output the review prompt for agent-review layers and exit
@@ -194,13 +196,35 @@ async function cmdVerify(): Promise<void> {
 
   const result = await verify(ref, config, selfReviewResults, repoRoot);
 
+  // Resolve --exit-code threshold
+  let threshold: number | null = null;
+  if (exitCodeArg) {
+    const value = exitCodeArg.split('=')[1];
+    if (value === 'auto') {
+      threshold = getBaseline(repoRoot, config);
+    } else {
+      const parsed = parseInt(value, 10);
+      if (isNaN(parsed)) {
+        console.error(`Invalid --exit-code value: "${value}". Use a number or "auto".`);
+        process.exit(1);
+      }
+      threshold = parsed;
+    }
+  }
+
+  const thresholdPassed = threshold === null || result.composite_score >= threshold;
+
   if (jsonMode) {
-    console.log(JSON.stringify({
+    const output: Record<string, unknown> = {
       score: result.composite_score,
       decision: result.decision,
       summary: result.summary,
-      passed: result.decision !== 'block',
-    }));
+      passed: result.decision !== 'block' && thresholdPassed,
+    };
+    if (threshold !== null) {
+      output.threshold = threshold;
+    }
+    console.log(JSON.stringify(output));
   } else {
     console.log(result.summary);
     console.log(`\nComposite score: ${result.composite_score}/100`);
@@ -210,6 +234,13 @@ async function cmdVerify(): Promise<void> {
   appendResult(repoRoot, result, 'pending', `Verified ${ref}`);
   if (!jsonMode) {
     console.log('\nResult logged to .canductor/results.tsv');
+  }
+
+  if (!thresholdPassed) {
+    if (!jsonMode) {
+      console.log(`Score ${result.composite_score} below threshold ${threshold}`);
+    }
+    process.exit(1);
   }
 
   if (result.decision === 'block') {

@@ -173,6 +173,40 @@ policy:
     expect(exitCode).toBe(0);
     expect(stdout).toContain('Decision:');
   });
+
+  it('exits 0 when score is above --exit-code threshold', () => {
+    const { stdout, exitCode } = runCli('verify test-ref --exit-code=50', verifyDir);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('Decision:');
+  });
+
+  it('exits 1 when score is below --exit-code threshold', () => {
+    const { stdout, exitCode } = runCli('verify test-ref --exit-code=101', verifyDir);
+    expect(exitCode).toBe(1);
+    expect(stdout).toContain('below threshold');
+  });
+
+  it('--exit-code=auto uses baseline as threshold', () => {
+    const { exitCode } = runCli('verify test-ref --exit-code=auto', verifyDir);
+    // echo_test scores 100, baseline defaults to 0 for first run, so should pass
+    expect(exitCode).toBe(0);
+  });
+
+  it('--exit-code works with --json and includes threshold', () => {
+    const { stdout, exitCode } = runCli('verify test-ref --exit-code=50 --json', verifyDir);
+    expect(exitCode).toBe(0);
+    const parsed = JSON.parse(stdout.trim());
+    expect(parsed).toHaveProperty('threshold', 50);
+    expect(parsed).toHaveProperty('passed', true);
+  });
+
+  it('--exit-code with --json shows passed=false when below threshold', () => {
+    const { stdout, exitCode } = runCli('verify test-ref --exit-code=101 --json', verifyDir);
+    expect(exitCode).toBe(1);
+    const parsed = JSON.parse(stdout.trim());
+    expect(parsed).toHaveProperty('threshold', 101);
+    expect(parsed).toHaveProperty('passed', false);
+  });
 });
 
 describe('canductor history', () => {
