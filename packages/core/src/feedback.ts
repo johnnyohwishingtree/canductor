@@ -4,7 +4,7 @@
  */
 
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
-import { generatePromptContext, analyzeResults } from './results.js';
+import { generatePromptContext, analyzeResults } from './results-analysis.js';
 import type { RuleImprovement } from './types.js';
 
 const MARKER_START = '<!-- canductor:start -->';

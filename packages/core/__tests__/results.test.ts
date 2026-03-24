@@ -2,7 +2,9 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { appendResult, readResults, updateResultStatus, analyzeResults, detectStalls, correlateLayerFailures, analyzeTrajectory, generatePromptContext, diffResults, getStatus, getTrend, computeAutoBaseline, getBaseline } from '../src/results.js';
+import { appendResult, readResults, updateResultStatus } from '../src/results.js';
+import { analyzeResults, detectStalls, correlateLayerFailures, analyzeTrajectory, generatePromptContext } from '../src/results-analysis.js';
+import { diffResults, getStatus, getTrend, computeAutoBaseline, getBaseline } from '../src/results-query.js';
 import type { VerifyResult, CanductorConfig, ResultRow } from '../src/types.js';
 
 let tempDir: string;
