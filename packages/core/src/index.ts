@@ -16,6 +16,8 @@ export { parseSkillFrontmatter, validateSkillFrontmatter, discoverSkills, lintSk
 export { runGuardrailLayer } from './guardrail.js';
 export { generateReport } from './report.js';
 export type { ReportData } from './report.js';
+export { listStaleBranches, deleteBranches } from './clean.js';
+export type { StaleBranch } from './clean.js';
 export type {
   CanductorConfig,
   LayerConfig,

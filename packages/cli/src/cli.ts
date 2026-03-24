@@ -36,6 +36,8 @@ import {
   runFirstVerification,
   lintSkills,
   generateReport,
+  listStaleBranches,
+  deleteBranches,
 } from '@canductor/core';
 import type { AgentReviewResult } from '@canductor/core';
 import { writeFileSync, existsSync, mkdirSync } from 'node:fs';
@@ -67,6 +69,7 @@ Usage:
   canductor suggest                          Suggest rule improvements based on history
   canductor init                             Create starter config
   canductor report [ref] [--json]             Generate markdown quality summary
+  canductor clean [--force]                  Remove merged canductor branches
   canductor skill-lint                       Validate SKILL.md frontmatter
   canductor help                             Show this message
 `);
@@ -551,6 +554,34 @@ function cmdSuggest(): void {
   }
 }
 
+function cmdClean(): void {
+  const force = args.includes('--force');
+  const branches = listStaleBranches(repoRoot);
+
+  if (branches.length === 0) {
+    console.log('No stale canductor branches found.');
+    return;
+  }
+
+  if (!force) {
+    console.log('Stale branches (merged into master):');
+    for (const branch of branches) {
+      console.log(`  ${branch.remote}/${branch.name}`);
+    }
+    console.log(`\n${branches.length} branch(es) would be deleted. Run with --force to delete.`);
+    return;
+  }
+
+  const results = deleteBranches(repoRoot, branches);
+  for (const result of results) {
+    const status = result.deleted ? 'Deleted' : `Failed: ${result.error}`;
+    console.log(`  ${result.branch}: ${status}`);
+  }
+
+  const deleted = results.filter(r => r.deleted).length;
+  console.log(`\n${deleted}/${results.length} branch(es) deleted.`);
+}
+
 function cmdSkillLint(): void {
   const results = lintSkills(repoRoot);
 
@@ -616,6 +647,9 @@ async function main(): Promise<void> {
       break;
     case 'report':
       cmdReport();
+      break;
+    case 'clean':
+      cmdClean();
       break;
     case 'skill-lint':
       cmdSkillLint();
