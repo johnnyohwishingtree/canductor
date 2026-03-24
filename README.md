@@ -67,16 +67,16 @@ When verification fails, the pipeline attributes the failure to the task that ca
 
 ```
 task_type          guided_by                           ref   cycle  failure
-test               .claude/templates/test.md           #42   1      vague assertions
-test               .claude/templates/test.md           #42   2      none
-new-cli-command    .claude/patterns/new-cli-command.md  #42   1      none
-test               .claude/templates/test.md           #43   1      none
+test               .canductor/templates/test.md           #42   1      vague assertions
+test               .canductor/templates/test.md           #42   2      none
+new-cli-command    .canductor/patterns/new-cli-command.md  #42   1      none
+test               .canductor/templates/test.md           #43   1      none
 ```
 
 Over time, this reveals which `.claude/` files need improvement:
 
 ```
-test:            avg 1.5 cycles → optimize .claude/templates/test.md
+test:            avg 1.5 cycles → optimize .canductor/templates/test.md
 new-cli-command: avg 1.0 cycles → converged, leave alone
 ```
 

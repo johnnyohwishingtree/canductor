@@ -7,9 +7,9 @@ When adding a new quality dimension to evaluate (e.g., documentation quality, se
 
 ## Files to create/modify (in order)
 
-### 1. `.claude/rubrics/<domain>-quality.md` — Create the rubric
+### 1. `.canductor/rubrics/<domain>-quality.md` — Create the rubric
 
-Follow `.claude/templates/rubric.md`:
+Follow `.canductor/templates/rubric.md`:
 - Weights sum to 100%
 - 2-5 categories
 - Every criterion is observable (can be checked by reading code or running a command)
@@ -22,18 +22,18 @@ Add an `agent-review` layer that uses the rubric:
 <domain>_review:
   name: <domain>_review
   type: agent-review
-  rubric: ".claude/rubrics/<domain>-quality.md"
+  rubric: ".canductor/rubrics/<domain>-quality.md"
   context: ["<paths to evaluate>"]
   weight: 0.6
 ```
 
-### 3. `.claude/templates/rubric.md` — Update cross-reference table
+### 3. `.canductor/templates/rubric.md` — Update cross-reference table
 
 Add the new rubric to the template-rubric pairs table so future pipeline runs know the mapping.
 
 ### 4. Create a matching template (if applicable)
 
-If this rubric evaluates a new type of artifact the pipeline creates, also create a matching template in `.claude/templates/`. See `templates/rubric.md` for the pairs table.
+If this rubric evaluates a new type of artifact the pipeline creates, also create a matching template in `.canductor/templates/`. See `templates/rubric.md` for the pairs table.
 
 ### 5. Update policy (if needed)
 

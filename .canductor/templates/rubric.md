@@ -1,6 +1,6 @@
 # Rubric Template
 
-Rubric files in `.claude/rubrics/` follow this structure.
+Rubric files in `.canductor/rubrics/` follow this structure.
 
 **Matching rubric:** Self — new rubrics are evaluated against this template.
 
@@ -30,7 +30,7 @@ Evaluate <what's being evaluated> against these criteria.
 - **Criteria are observable.** Each bullet describes something you can verify by reading the code or running a command. No subjective criteria like "code feels clean."
 - **Criteria are specific.** `'No any types'` not `'Types are good'`. `'Functions under 30 lines'` not `'Functions are small'`.
 - **Categories cover distinct concerns.** No overlap between categories. If a criterion could go in two categories, pick one and leave it there.
-- **Name the matching template.** If this rubric evaluates artifacts created from a template, reference that template at the top (e.g., "Evaluates modules following `.claude/templates/module.md`").
+- **Name the matching template.** If this rubric evaluates artifacts created from a template, reference that template at the top (e.g., "Evaluates modules following `.canductor/templates/module.md`").
 - **Rubric names use kebab-case.** File: `<domain>-quality.md`. Examples: `canductor-code-quality.md`, `skill-quality.md`, `test-quality.md`.
 
 ## Template-Rubric pairs

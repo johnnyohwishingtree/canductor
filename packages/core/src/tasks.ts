@@ -181,8 +181,8 @@ export function getOptimizationTargets(repoRoot: string): OptimizationTarget[] {
  */
 export function resolveGuidedBy(repoRoot: string, taskType: string): string | null {
   const candidates = [
-    `.claude/patterns/${taskType}.md`,
-    `.claude/templates/${taskType}.md`,
+    `.canductor/patterns/${taskType}.md`,
+    `.canductor/templates/${taskType}.md`,
   ];
   for (const candidate of candidates) {
     if (existsSync(join(repoRoot, candidate))) return candidate;

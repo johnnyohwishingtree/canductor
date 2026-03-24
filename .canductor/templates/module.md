@@ -2,7 +2,7 @@
 
 New TypeScript source modules in `packages/core/src/` or `packages/cli/src/` follow this structure.
 
-**Matching rubric:** `.claude/rubrics/canductor-code-quality.md`
+**Matching rubric:** `.canductor/rubrics/canductor-code-quality.md`
 
 ## Structure
 
@@ -67,6 +67,6 @@ function helperFunction(): void {
 
 ## Matching test
 
-Every module `src/<name>.ts` must have a corresponding `__tests__/<name>.test.ts`. See `.claude/templates/test.md` for test structure.
+Every module `src/<name>.ts` must have a corresponding `__tests__/<name>.test.ts`. See `.canductor/templates/test.md` for test structure.
 
 <!-- canductor:template-version:1 -->

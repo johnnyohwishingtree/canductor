@@ -23,17 +23,17 @@ afterEach(() => {
 
 describe('appendTaskResult', () => {
   it('creates tasks.tsv with header on first entry', () => {
-    appendTaskResult(tempDir, 'test', '.claude/templates/test.md', '#42', 1, '');
+    appendTaskResult(tempDir, 'test', '.canductor/templates/test.md', '#42', 1, '');
 
     const content = readFileSync(join(tempDir, '.canductor/tasks.tsv'), 'utf-8');
     expect(content).toContain('task_type\tguided_by');
-    expect(content).toContain('test\t.claude/templates/test.md\t#42\t1\tnone');
+    expect(content).toContain('test\t.canductor/templates/test.md\t#42\t1\tnone');
   });
 
   it('appends multiple entries', () => {
-    appendTaskResult(tempDir, 'test', '.claude/templates/test.md', '#42', 1, 'vague assertions');
-    appendTaskResult(tempDir, 'test', '.claude/templates/test.md', '#42', 2, '');
-    appendTaskResult(tempDir, 'module', '.claude/templates/module.md', '#42', 1, '');
+    appendTaskResult(tempDir, 'test', '.canductor/templates/test.md', '#42', 1, 'vague assertions');
+    appendTaskResult(tempDir, 'test', '.canductor/templates/test.md', '#42', 2, '');
+    appendTaskResult(tempDir, 'module', '.canductor/templates/module.md', '#42', 1, '');
 
     const results = readTaskResults(tempDir);
     expect(results).toHaveLength(3);
@@ -49,12 +49,12 @@ describe('readTaskResults', () => {
   });
 
   it('parses all fields correctly', () => {
-    appendTaskResult(tempDir, 'new-cli-command', '.claude/patterns/new-cli-command.md', '#43', 2, 'wrong import path');
+    appendTaskResult(tempDir, 'new-cli-command', '.canductor/patterns/new-cli-command.md', '#43', 2, 'wrong import path');
 
     const results = readTaskResults(tempDir);
     expect(results).toHaveLength(1);
     expect(results[0].task_type).toBe('new-cli-command');
-    expect(results[0].guided_by).toBe('.claude/patterns/new-cli-command.md');
+    expect(results[0].guided_by).toBe('.canductor/patterns/new-cli-command.md');
     expect(results[0].ref).toBe('#43');
     expect(results[0].verify_cycle).toBe(2);
     expect(results[0].failure).toBe('wrong import path');
@@ -69,14 +69,14 @@ describe('analyzeTaskTypes', () => {
 
   it('computes average cycles per task type', () => {
     // Story #42: test took 2 cycles
-    appendTaskResult(tempDir, 'test', '.claude/templates/test.md', '#42', 1, 'no error path');
-    appendTaskResult(tempDir, 'test', '.claude/templates/test.md', '#42', 2, '');
+    appendTaskResult(tempDir, 'test', '.canductor/templates/test.md', '#42', 1, 'no error path');
+    appendTaskResult(tempDir, 'test', '.canductor/templates/test.md', '#42', 2, '');
     // Story #43: test took 1 cycle
-    appendTaskResult(tempDir, 'test', '.claude/templates/test.md', '#43', 1, '');
+    appendTaskResult(tempDir, 'test', '.canductor/templates/test.md', '#43', 1, '');
     // Story #44: test took 3 cycles
-    appendTaskResult(tempDir, 'test', '.claude/templates/test.md', '#44', 1, 'wrong mock');
-    appendTaskResult(tempDir, 'test', '.claude/templates/test.md', '#44', 2, 'missing assertion');
-    appendTaskResult(tempDir, 'test', '.claude/templates/test.md', '#44', 3, '');
+    appendTaskResult(tempDir, 'test', '.canductor/templates/test.md', '#44', 1, 'wrong mock');
+    appendTaskResult(tempDir, 'test', '.canductor/templates/test.md', '#44', 2, 'missing assertion');
+    appendTaskResult(tempDir, 'test', '.canductor/templates/test.md', '#44', 3, '');
 
     const analyses = analyzeTaskTypes(tempDir);
     expect(analyses).toHaveLength(1);
@@ -88,9 +88,9 @@ describe('analyzeTaskTypes', () => {
   });
 
   it('marks type as converged after 3 consecutive cycle-1 successes', () => {
-    appendTaskResult(tempDir, 'module', '.claude/templates/module.md', '#42', 1, '');
-    appendTaskResult(tempDir, 'module', '.claude/templates/module.md', '#43', 1, '');
-    appendTaskResult(tempDir, 'module', '.claude/templates/module.md', '#44', 1, '');
+    appendTaskResult(tempDir, 'module', '.canductor/templates/module.md', '#42', 1, '');
+    appendTaskResult(tempDir, 'module', '.canductor/templates/module.md', '#43', 1, '');
+    appendTaskResult(tempDir, 'module', '.canductor/templates/module.md', '#44', 1, '');
 
     const analyses = analyzeTaskTypes(tempDir);
     expect(analyses[0].converged).toBe(true);
@@ -98,20 +98,20 @@ describe('analyzeTaskTypes', () => {
   });
 
   it('does not mark as converged if recent use had multiple cycles', () => {
-    appendTaskResult(tempDir, 'test', '.claude/templates/test.md', '#42', 1, '');
-    appendTaskResult(tempDir, 'test', '.claude/templates/test.md', '#43', 1, '');
-    appendTaskResult(tempDir, 'test', '.claude/templates/test.md', '#44', 1, 'fail');
-    appendTaskResult(tempDir, 'test', '.claude/templates/test.md', '#44', 2, '');
+    appendTaskResult(tempDir, 'test', '.canductor/templates/test.md', '#42', 1, '');
+    appendTaskResult(tempDir, 'test', '.canductor/templates/test.md', '#43', 1, '');
+    appendTaskResult(tempDir, 'test', '.canductor/templates/test.md', '#44', 1, 'fail');
+    appendTaskResult(tempDir, 'test', '.canductor/templates/test.md', '#44', 2, '');
 
     const analyses = analyzeTaskTypes(tempDir);
     expect(analyses[0].converged).toBe(false);
   });
 
   it('sorts by highest avg_cycles first', () => {
-    appendTaskResult(tempDir, 'module', '.claude/templates/module.md', '#42', 1, '');
-    appendTaskResult(tempDir, 'test', '.claude/templates/test.md', '#42', 1, 'fail');
-    appendTaskResult(tempDir, 'test', '.claude/templates/test.md', '#42', 2, 'fail');
-    appendTaskResult(tempDir, 'test', '.claude/templates/test.md', '#42', 3, '');
+    appendTaskResult(tempDir, 'module', '.canductor/templates/module.md', '#42', 1, '');
+    appendTaskResult(tempDir, 'test', '.canductor/templates/test.md', '#42', 1, 'fail');
+    appendTaskResult(tempDir, 'test', '.canductor/templates/test.md', '#42', 2, 'fail');
+    appendTaskResult(tempDir, 'test', '.canductor/templates/test.md', '#42', 3, '');
 
     const analyses = analyzeTaskTypes(tempDir);
     expect(analyses[0].task_type).toBe('test');
@@ -121,26 +121,26 @@ describe('analyzeTaskTypes', () => {
 
 describe('getOptimizationTargets', () => {
   it('returns empty when all types are at 1 cycle', () => {
-    appendTaskResult(tempDir, 'module', '.claude/templates/module.md', '#42', 1, '');
-    appendTaskResult(tempDir, 'module', '.claude/templates/module.md', '#43', 1, '');
-    appendTaskResult(tempDir, 'module', '.claude/templates/module.md', '#44', 1, '');
+    appendTaskResult(tempDir, 'module', '.canductor/templates/module.md', '#42', 1, '');
+    appendTaskResult(tempDir, 'module', '.canductor/templates/module.md', '#43', 1, '');
+    appendTaskResult(tempDir, 'module', '.canductor/templates/module.md', '#44', 1, '');
 
     expect(getOptimizationTargets(tempDir)).toHaveLength(0);
   });
 
   it('returns types with avg > 1 and 3+ uses', () => {
     // test: 3 uses, avg 2 cycles
-    appendTaskResult(tempDir, 'test', '.claude/templates/test.md', '#42', 1, 'fail');
-    appendTaskResult(tempDir, 'test', '.claude/templates/test.md', '#42', 2, '');
-    appendTaskResult(tempDir, 'test', '.claude/templates/test.md', '#43', 1, 'fail');
-    appendTaskResult(tempDir, 'test', '.claude/templates/test.md', '#43', 2, '');
-    appendTaskResult(tempDir, 'test', '.claude/templates/test.md', '#44', 1, 'fail');
-    appendTaskResult(tempDir, 'test', '.claude/templates/test.md', '#44', 2, '');
+    appendTaskResult(tempDir, 'test', '.canductor/templates/test.md', '#42', 1, 'fail');
+    appendTaskResult(tempDir, 'test', '.canductor/templates/test.md', '#42', 2, '');
+    appendTaskResult(tempDir, 'test', '.canductor/templates/test.md', '#43', 1, 'fail');
+    appendTaskResult(tempDir, 'test', '.canductor/templates/test.md', '#43', 2, '');
+    appendTaskResult(tempDir, 'test', '.canductor/templates/test.md', '#44', 1, 'fail');
+    appendTaskResult(tempDir, 'test', '.canductor/templates/test.md', '#44', 2, '');
 
     // module: 3 uses, avg 1 cycle (should NOT be a target)
-    appendTaskResult(tempDir, 'module', '.claude/templates/module.md', '#42', 1, '');
-    appendTaskResult(tempDir, 'module', '.claude/templates/module.md', '#43', 1, '');
-    appendTaskResult(tempDir, 'module', '.claude/templates/module.md', '#44', 1, '');
+    appendTaskResult(tempDir, 'module', '.canductor/templates/module.md', '#42', 1, '');
+    appendTaskResult(tempDir, 'module', '.canductor/templates/module.md', '#43', 1, '');
+    appendTaskResult(tempDir, 'module', '.canductor/templates/module.md', '#44', 1, '');
 
     const targets = getOptimizationTargets(tempDir);
     expect(targets).toHaveLength(1);
@@ -150,10 +150,10 @@ describe('getOptimizationTargets', () => {
   });
 
   it('excludes types with fewer than 3 uses', () => {
-    appendTaskResult(tempDir, 'test', '.claude/templates/test.md', '#42', 1, 'fail');
-    appendTaskResult(tempDir, 'test', '.claude/templates/test.md', '#42', 2, '');
-    appendTaskResult(tempDir, 'test', '.claude/templates/test.md', '#43', 1, 'fail');
-    appendTaskResult(tempDir, 'test', '.claude/templates/test.md', '#43', 2, '');
+    appendTaskResult(tempDir, 'test', '.canductor/templates/test.md', '#42', 1, 'fail');
+    appendTaskResult(tempDir, 'test', '.canductor/templates/test.md', '#42', 2, '');
+    appendTaskResult(tempDir, 'test', '.canductor/templates/test.md', '#43', 1, 'fail');
+    appendTaskResult(tempDir, 'test', '.canductor/templates/test.md', '#43', 2, '');
     // Only 2 uses — not enough data
 
     expect(getOptimizationTargets(tempDir)).toHaveLength(0);
@@ -162,26 +162,26 @@ describe('getOptimizationTargets', () => {
 
 describe('resolveGuidedBy', () => {
   it('finds pattern file', () => {
-    mkdirSync(join(tempDir, '.claude/patterns'), { recursive: true });
-    writeFileSync(join(tempDir, '.claude/patterns/new-cli-command.md'), '# Pattern');
+    mkdirSync(join(tempDir, '.canductor/patterns'), { recursive: true });
+    writeFileSync(join(tempDir, '.canductor/patterns/new-cli-command.md'), '# Pattern');
 
-    expect(resolveGuidedBy(tempDir, 'new-cli-command')).toBe('.claude/patterns/new-cli-command.md');
+    expect(resolveGuidedBy(tempDir, 'new-cli-command')).toBe('.canductor/patterns/new-cli-command.md');
   });
 
   it('finds template file', () => {
-    mkdirSync(join(tempDir, '.claude/templates'), { recursive: true });
-    writeFileSync(join(tempDir, '.claude/templates/test.md'), '# Template');
+    mkdirSync(join(tempDir, '.canductor/templates'), { recursive: true });
+    writeFileSync(join(tempDir, '.canductor/templates/test.md'), '# Template');
 
-    expect(resolveGuidedBy(tempDir, 'test')).toBe('.claude/templates/test.md');
+    expect(resolveGuidedBy(tempDir, 'test')).toBe('.canductor/templates/test.md');
   });
 
   it('prefers pattern over template', () => {
-    mkdirSync(join(tempDir, '.claude/patterns'), { recursive: true });
-    mkdirSync(join(tempDir, '.claude/templates'), { recursive: true });
-    writeFileSync(join(tempDir, '.claude/patterns/test.md'), '# Pattern');
-    writeFileSync(join(tempDir, '.claude/templates/test.md'), '# Template');
+    mkdirSync(join(tempDir, '.canductor/patterns'), { recursive: true });
+    mkdirSync(join(tempDir, '.canductor/templates'), { recursive: true });
+    writeFileSync(join(tempDir, '.canductor/patterns/test.md'), '# Pattern');
+    writeFileSync(join(tempDir, '.canductor/templates/test.md'), '# Template');
 
-    expect(resolveGuidedBy(tempDir, 'test')).toBe('.claude/patterns/test.md');
+    expect(resolveGuidedBy(tempDir, 'test')).toBe('.canductor/patterns/test.md');
   });
 
   it('returns null when no file exists', () => {
@@ -195,9 +195,9 @@ describe('summarizeTaskPerformance', () => {
   });
 
   it('shows performance summary with status', () => {
-    appendTaskResult(tempDir, 'test', '.claude/templates/test.md', '#42', 1, 'fail');
-    appendTaskResult(tempDir, 'test', '.claude/templates/test.md', '#42', 2, '');
-    appendTaskResult(tempDir, 'module', '.claude/templates/module.md', '#42', 1, '');
+    appendTaskResult(tempDir, 'test', '.canductor/templates/test.md', '#42', 1, 'fail');
+    appendTaskResult(tempDir, 'test', '.canductor/templates/test.md', '#42', 2, '');
+    appendTaskResult(tempDir, 'module', '.canductor/templates/module.md', '#42', 1, '');
 
     const summary = summarizeTaskPerformance(tempDir);
     expect(summary).toContain('Task type performance');

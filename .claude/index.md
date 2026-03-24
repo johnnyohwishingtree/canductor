@@ -16,22 +16,22 @@ Read this file first. It maps every artifact in the pipeline system. Only read i
 
 | Template | Rubric | What it structures |
 |----------|--------|--------------------|
-| `templates/module.md` | `rubrics/canductor-code-quality.md` | TypeScript source modules |
-| `templates/test.md` | `rubrics/test-quality.md` | Test files |
-| `templates/skill.md` | `rubrics/skill-quality.md` | Skill definitions |
-| `templates/epic.md` | — | Epic issues |
-| `templates/story.md` | — | Story issues |
-| `templates/rubric.md` | Self | Rubric files |
+| `.canductor/templates/module.md` | `.canductor/rubrics/canductor-code-quality.md` | TypeScript source modules |
+| `.canductor/templates/test.md` | `.canductor/rubrics/test-quality.md` | Test files |
+| `.canductor/templates/skill.md` | `.canductor/rubrics/skill-quality.md` | Skill definitions |
+| `.canductor/templates/epic.md` | — | Epic issues |
+| `.canductor/templates/story.md` | — | Story issues |
+| `.canductor/templates/rubric.md` | Self | Rubric files |
 
 ## Patterns
 
 | Pattern | Trigger | Templates Used |
 |---------|---------|----------------|
-| `patterns/new-layer.md` | Adding a verification layer type | module, test |
-| `patterns/new-cli-command.md` | Adding a CLI subcommand | module, test |
-| `patterns/new-rubric.md` | Adding a quality dimension | rubric |
-| `patterns/extend-results.md` | Adding fields to the results log | module, test |
-| `patterns/new-core-module.md` | Adding a new domain module | module, test |
+| `.canductor/patterns/new-layer.md` | Adding a verification layer type | module, test |
+| `.canductor/patterns/new-cli-command.md` | Adding a CLI subcommand | module, test |
+| `.canductor/patterns/new-rubric.md` | Adding a quality dimension | rubric |
+| `.canductor/patterns/extend-results.md` | Adding fields to the results log | module, test |
+| `.canductor/patterns/new-core-module.md` | Adding a new domain module | module, test |
 
 ## Skills
 

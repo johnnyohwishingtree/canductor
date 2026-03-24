@@ -853,10 +853,10 @@ describe('canductor tasks', () => {
   it('shows task type table when tasks.tsv has data', () => {
     const canductorDir = join(tasksDir, '.canductor');
     const header = 'task_type\tguided_by\tref\tverify_cycle\tfailure\ttimestamp';
-    const row1 = 'module\t.claude/templates/module.md\t#1\t1\tnone\t2026-03-24T00:00:00Z';
-    const row2 = 'module\t.claude/templates/module.md\t#2\t2\ttype error\t2026-03-24T01:00:00Z';
-    const row3 = 'module\t.claude/templates/module.md\t#2\t2\tnone\t2026-03-24T01:01:00Z';
-    const row4 = 'test\t.claude/templates/test.md\t#1\t1\tnone\t2026-03-24T00:00:00Z';
+    const row1 = 'module\t.canductor/templates/module.md\t#1\t1\tnone\t2026-03-24T00:00:00Z';
+    const row2 = 'module\t.canductor/templates/module.md\t#2\t2\ttype error\t2026-03-24T01:00:00Z';
+    const row3 = 'module\t.canductor/templates/module.md\t#2\t2\tnone\t2026-03-24T01:01:00Z';
+    const row4 = 'test\t.canductor/templates/test.md\t#1\t1\tnone\t2026-03-24T00:00:00Z';
     writeFileSync(join(canductorDir, 'tasks.tsv'), [header, row1, row2, row3, row4].join('\n'));
 
     const { stdout, exitCode } = runCli('tasks', tasksDir);

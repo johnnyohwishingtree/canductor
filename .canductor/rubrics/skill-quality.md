@@ -1,6 +1,6 @@
 # Skill Quality Rubric
 
-Evaluate Claude Code skill files (following `.claude/templates/skill.md`) against these criteria.
+Evaluate Claude Code skill files (following `.canductor/templates/skill.md`) against these criteria.
 
 ## Clarity (weight: 30%)
 - Every step has an explicit bash command or concrete action — no vague verbs like "handle", "process", "deal with"

@@ -9,8 +9,8 @@ Patterns are multi-file change recipes. They tell the pipeline how to make cross
                      │           Story Issue Body               │
                      │                                         │
                      │  Context: files to read                 │
-                     │  Patterns: .claude/patterns/add-X.md    │
-                     │  Templates: .claude/templates/module.md │
+                     │  Patterns: .canductor/patterns/add-X.md    │
+                     │  Templates: .canductor/templates/module.md │
                      │  Key Types: inline definitions           │
                      └──────────┬──────────────────────────────┘
                                 │

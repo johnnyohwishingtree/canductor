@@ -19,7 +19,7 @@ layers:
     name: code_quality
     type: agent-review
     model: claude-sonnet-4-6
-    rubric: ".claude/rubrics/canductor-code-quality.md"
+    rubric: ".canductor/rubrics/canductor-code-quality.md"
     context:
       - "packages/core/src/"
       - "packages/cli/src/"

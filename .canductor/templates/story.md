@@ -21,7 +21,7 @@ The pipeline tracks verify attempts per task type to optimize these files over t
 2. [test] Create `<path/to/file.test.ts>` — <what to test>
 3. [new-cli-command] Add command to `<path/to/cli.ts>` — <what it does>
 
-Task type names map to `.claude/patterns/<name>.md` or `.claude/templates/<name>.md`.
+Task type names map to `.canductor/patterns/<name>.md` or `.canductor/templates/<name>.md`.
 If no matching file exists, the task type is new — the pipeline will create a pattern after the story ships.
 
 ## Context (read these before implementing)
