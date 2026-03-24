@@ -176,7 +176,8 @@ Read the decision:
 
 If after 6 attempts the decision is still not `auto_merge`:
 
-1. Push the branch and create a PR anyway (so the work is visible), but do **NOT** merge:
+1. Resolve the session URL (see [Session URL Resolution](#session-url-resolution)).
+2. Push the branch and create a PR anyway (so the work is visible), but do **NOT** merge:
    ```bash
    git add <specific files>
    git commit -m "WIP: #$NUMBER — failed verification after 6 attempts"
@@ -185,17 +186,21 @@ If after 6 attempts the decision is still not `auto_merge`:
    gh pr create --repo johnnyohwishingtree/canductor \
      --head canductor/issue-$NUMBER --base master \
      --title "WIP: $TITLE" \
-     --body "Failed canductor verification after 6 attempts. Needs human review. Ref: #$NUMBER"
+     --body "Failed canductor verification after 6 attempts. Needs human review. Ref: #$NUMBER
+
+Session: $SESSION_URL"
    ```
-2. Update the result status to rejected:
+3. Update the result status to rejected:
    ```bash
    node packages/cli/dist/cli.js result-update $NUMBER rejected
    ```
-3. Reset the issue so a future run can retry:
+4. Reset the issue so a future run can retry:
    ```bash
    gh issue edit $NUMBER --repo johnnyohwishingtree/canductor --remove-label "in-progress" --add-label "pending"
    gh issue comment $NUMBER --repo johnnyohwishingtree/canductor \
-     --body "Pipeline failed to meet quality threshold after 6 attempts. WIP PR created for visibility. Resetting to pending."
+     --body "Pipeline failed to meet quality threshold after 6 attempts. WIP PR created for visibility. Resetting to pending.
+
+Session: $SESSION_URL"
    ```
 4. Commit the updated results log:
    ```bash
@@ -205,6 +210,8 @@ If after 6 attempts the decision is still not `auto_merge`:
 5. **Stop.** Do not proceed to Step 6 or Step 7.
 
 ### Step 6: Push, PR, merge, close (only if Step 5 passed)
+
+Resolve the session URL (see [Session URL Resolution](#session-url-resolution)).
 
 ```bash
 git add <specific files> # never git add -A
@@ -220,15 +227,21 @@ TITLE=$(gh issue view $NUMBER --repo johnnyohwishingtree/canductor --json title 
 gh pr create --repo johnnyohwishingtree/canductor \
   --head canductor/issue-$NUMBER --base master \
   --title "$TITLE" \
-  --body "Closes #$NUMBER — implemented autonomously by canductor pipeline."
+  --body "Closes #$NUMBER — implemented autonomously by canductor pipeline.
+
+Session: $SESSION_URL"
 
 PR_NUMBER=$(gh pr list --repo johnnyohwishingtree/canductor --head canductor/issue-$NUMBER --json number --jq '.[0].number')
 gh pr review $PR_NUMBER --repo johnnyohwishingtree/canductor --approve --body "Self-verified: typecheck + tests pass."
 gh pr merge $PR_NUMBER --repo johnnyohwishingtree/canductor --squash
 ```
 
-Close the issue:
+Close the issue with a session-linked comment:
 ```bash
+gh issue comment $NUMBER --repo johnnyohwishingtree/canductor \
+  --body "Story complete — implemented and verified by canductor pipeline.
+
+Session: $SESSION_URL"
 gh issue edit $NUMBER --repo johnnyohwishingtree/canductor --remove-label "in-progress" --add-label "completed"
 gh issue close $NUMBER --repo johnnyohwishingtree/canductor
 ```
@@ -297,6 +310,22 @@ If a story involves creating a new skill, read `.claude/templates/skill.md` and 
 
 The next pipeline run will pick up the first new story.
 
+## Session URL Resolution
+
+Before creating PRs or posting issue comments (Steps 5b and 6), resolve the Claude Code session URL so humans can trace back to the agent session:
+
+```bash
+# Attempt to find the current session ID from ~/.claude/projects/
+SESSION_ID=$(ls -t ~/.claude/projects/*/sessions/ 2>/dev/null | head -1 | sed 's/\.json$//')
+if [ -n "$SESSION_ID" ]; then
+  SESSION_URL="https://claude.ai/code/session_$SESSION_ID"
+else
+  SESSION_URL="https://claude.ai/code"
+fi
+```
+
+If the session ID cannot be determined, `SESSION_URL` falls back to the Claude Code dashboard. Use `$SESSION_URL` in PR bodies and issue comments.
+
 ## Token Optimization
 
 - Don't read files you've already read in this session
@@ -305,6 +334,6 @@ The next pipeline run will pick up the first new story.
 
 ## Template Maintenance
 
-<!-- canductor:skill-template-version:1 -->
-<!-- Last updated: 2026-03-23 -->
+<!-- canductor:skill-template-version:2 -->
+<!-- Last updated: 2026-03-24 -->
 <!-- Update this skill when: new CLI flags are added, new verification layers exist, or the pipeline loop changes -->
