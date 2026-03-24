@@ -40,6 +40,7 @@ import {
   deleteBranches,
   validateConfig,
   listLayers,
+  runLayer,
 } from '@canductor/core';
 import type { AgentReviewResult } from '@canductor/core';
 import { writeFileSync, existsSync, mkdirSync } from 'node:fs';
@@ -72,6 +73,7 @@ Usage:
   canductor init                             Create starter config
   canductor report [ref] [--json]             Generate markdown quality summary
   canductor layers [--json]                   List configured verification layers
+  canductor layer-test <name> [--json]        Run a single layer in isolation
   canductor config-check [--json]             Validate config file and policy expressions
   canductor clean [--force]                  Remove merged canductor branches
   canductor skill-lint                       Validate SKILL.md frontmatter
@@ -611,6 +613,44 @@ function cmdSkillLint(): void {
   }
 }
 
+async function cmdLayerTest(): Promise<void> {
+  const layerName = args[1];
+  const jsonMode = args.includes('--json');
+
+  if (!layerName || layerName.startsWith('--')) {
+    console.error('Usage: canductor layer-test <layer-name>');
+    process.exit(1);
+  }
+
+  const config = loadConfig(repoRoot);
+  const layerConfig = config.layers[layerName];
+
+  if (!layerConfig) {
+    const available = Object.keys(config.layers).join(', ');
+    console.error(`Layer not found: ${layerName}`);
+    console.error(`Available layers: ${available}`);
+    process.exit(1);
+  }
+
+  const result = await runLayer({ ...layerConfig, name: layerName }, undefined, repoRoot);
+
+  if (jsonMode) {
+    console.log(JSON.stringify(result, null, 2));
+  } else {
+    const status = result.pass ? 'PASS' : 'FAIL';
+    console.log(`${status} ${result.name} (${result.type})`);
+    console.log(`  Score: ${result.score}/100`);
+    console.log(`  Duration: ${result.duration_ms}ms`);
+    if (result.errors) {
+      console.log(`  Errors: ${result.errors}`);
+    }
+  }
+
+  if (!result.pass) {
+    process.exit(1);
+  }
+}
+
 function cmdLayers(): void {
   const jsonMode = args.includes('--json');
   const config = loadConfig(repoRoot);
@@ -714,6 +754,9 @@ async function main(): Promise<void> {
       break;
     case 'report':
       cmdReport();
+      break;
+    case 'layer-test':
+      await cmdLayerTest();
       break;
     case 'layers':
       cmdLayers();

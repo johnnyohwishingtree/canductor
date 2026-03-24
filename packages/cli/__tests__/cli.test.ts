@@ -788,6 +788,40 @@ describe('canductor suggest', () => {
   });
 });
 
+describe('canductor layer-test', () => {
+  beforeEach(() => setupConfig(TEST_DIR));
+
+  it('runs a passing layer and shows result', () => {
+    const { stdout, exitCode } = runCli('layer-test echo_test');
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('PASS');
+    expect(stdout).toContain('echo_test');
+    expect(stdout).toContain('Score: 100/100');
+  });
+
+  it('outputs JSON with --json flag', () => {
+    const { stdout, exitCode } = runCli('layer-test echo_test --json');
+    expect(exitCode).toBe(0);
+    const result = JSON.parse(stdout);
+    expect(result.name).toBe('echo_test');
+    expect(result.pass).toBe(true);
+    expect(result.score).toBe(100);
+  });
+
+  it('shows error for unknown layer name', () => {
+    const { stdout, exitCode } = runCli('layer-test nonexistent');
+    expect(exitCode).toBe(1);
+    expect(stdout).toContain('Layer not found: nonexistent');
+    expect(stdout).toContain('Available layers:');
+  });
+
+  it('shows usage when no layer name provided', () => {
+    const { stdout, exitCode } = runCli('layer-test');
+    expect(exitCode).toBe(1);
+    expect(stdout).toContain('Usage:');
+  });
+});
+
 describe('unknown command', () => {
   it('shows error and usage for unknown commands', () => {
     const { stdout, exitCode } = runCli('nonexistent');
