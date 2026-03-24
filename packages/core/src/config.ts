@@ -30,6 +30,7 @@ const LayerSchema = z.object({
   patterns: z.array(GuardrailPatternSchema).optional(),
   weight: z.number().min(0).max(1),
   parallel: z.boolean().optional(),
+  timeout_ms: z.number().positive().optional(),
 });
 
 const PolicySchema = z.object({
