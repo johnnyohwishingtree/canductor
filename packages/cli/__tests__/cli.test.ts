@@ -1056,6 +1056,66 @@ describe('canductor report', () => {
   });
 });
 
+describe('canductor clean', () => {
+  let cleanDir: string;
+  let parentDir: string;
+
+  function gitInCleanDir(cmd: string): string {
+    return execSync(`git ${cmd}`, {
+      cwd: cleanDir,
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+  }
+
+  beforeEach(() => {
+    // Set up a bare remote + working clone (same pattern as core/clean.test.ts)
+    parentDir = join(TEST_DIR, `clean-${Date.now()}`);
+    mkdirSync(parentDir, { recursive: true });
+    const bareDir = join(parentDir, 'bare.git');
+    const workDir = join(parentDir, 'work');
+    execSync(`git init --bare ${bareDir}`, { stdio: 'pipe' });
+    execSync(`git clone ${bareDir} ${workDir}`, { stdio: 'pipe' });
+    cleanDir = workDir;
+
+    // Configure git for commits and disable signing
+    gitInCleanDir('config user.email "test@test.com"');
+    gitInCleanDir('config user.name "Test"');
+    gitInCleanDir('config commit.gpgsign false');
+    gitInCleanDir('config tag.gpgsign false');
+
+    // Create initial commit
+    execSync('touch file.txt', { cwd: cleanDir, stdio: 'pipe' });
+    gitInCleanDir('add file.txt');
+    gitInCleanDir('commit -m "initial"');
+    gitInCleanDir('push origin master');
+
+    setupConfig(cleanDir);
+  });
+
+  afterEach(() => {
+    rmSync(parentDir, { recursive: true, force: true });
+  });
+
+  it('shows no stale branches message when none exist', () => {
+    const { stdout, exitCode } = runCli('clean', cleanDir);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('No stale canductor branches');
+  });
+
+  it('lists stale branches when merged canductor branches exist', () => {
+    // Create a canductor branch (already merged — same commit as master)
+    gitInCleanDir('branch canductor/issue-999');
+    gitInCleanDir('push origin canductor/issue-999');
+    gitInCleanDir('fetch --prune');
+
+    const { stdout, exitCode } = runCli('clean', cleanDir);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('Stale branches');
+    expect(stdout).toContain('would be deleted');
+  });
+});
+
 // Cleanup top-level test dir
 afterEach(() => {
   // Individual test suites clean their own dirs
