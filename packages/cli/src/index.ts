@@ -10,5 +10,5 @@ export {
   cmdHistory, cmdInsights, cmdTasks, cmdReport,
   cmdInit, cmdInject, cmdSuggest, cmdContext,
   cmdResultUpdate, cmdConfigCheck, cmdClean,
-  cmdSkillLint, cmdLayers,
+  cmdSkillLint, cmdLayers, cmdHealth,
 } from './commands/index.js';
