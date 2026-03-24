@@ -34,6 +34,8 @@ export interface LayerConfig {
   weight: number;
   /** Whether this layer can run in parallel with others. Defaults to true for deterministic/guardrail. */
   parallel?: boolean;
+  /** Max execution time in milliseconds. Defaults vary by layer type. */
+  timeout_ms?: number;
 }
 
 /** A pattern to match in guardrail scanning. */

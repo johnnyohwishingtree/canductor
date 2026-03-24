@@ -9,6 +9,19 @@ import { runAgentReview, buildReviewPrompt } from './agent-review.js';
 import { compareScreenshots } from './screenshot.js';
 import { runGuardrailLayer } from './guardrail.js';
 
+/** Return the default timeout in ms for a given layer type. */
+export function defaultTimeoutMs(type: LayerConfig['type']): number | undefined {
+  switch (type) {
+    case 'deterministic':
+    case 'screenshot-diff':
+      return 300_000; // 5 minutes
+    case 'guardrail':
+      return 120_000; // 2 minutes
+    case 'agent-review':
+      return undefined; // handled by the SDK
+  }
+}
+
 /** Run a deterministic layer (shell command, pass/fail). */
 export function runDeterministicLayer(layer: LayerConfig, options?: VerifyOptions): LayerResult {
   const start = Date.now();
@@ -26,8 +39,10 @@ export function runDeterministicLayer(layer: LayerConfig, options?: VerifyOption
     };
   }
 
+  const timeout = layer.timeout_ms ?? defaultTimeoutMs(layer.type);
+
   try {
-    const stdout = execSync(cmd, { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] });
+    const stdout = execSync(cmd, { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], timeout });
     if (log && stdout) {
       log(`[${layer.name}] stdout:\n${stdout}`);
     }
@@ -40,7 +55,18 @@ export function runDeterministicLayer(layer: LayerConfig, options?: VerifyOption
       duration_ms: Date.now() - start,
     };
   } catch (err: unknown) {
-    const error = err as { stdout?: string; stderr?: string };
+    const error = err as { stdout?: string; stderr?: string; killed?: boolean; code?: string; signal?: string };
+    if (error.code === 'ETIMEDOUT') {
+      const usedTimeout = timeout ?? 0;
+      return {
+        name: layer.name,
+        type: 'deterministic',
+        pass: false,
+        score: 0,
+        errors: `Command timed out after ${usedTimeout}ms`,
+        duration_ms: Date.now() - start,
+      };
+    }
     const fullOutput = (error.stdout ?? '') + (error.stderr ?? '');
     if (log) {
       log(`[${layer.name}] stdout+stderr:\n${fullOutput}`);

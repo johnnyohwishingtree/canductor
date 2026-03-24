@@ -8,6 +8,7 @@ import {
   runAgentReviewLayer,
   getAgentReviewPrompt,
   runLayer,
+  defaultTimeoutMs,
 } from '../src/layers.js';
 import type { LayerConfig, AgentReviewResult } from '../src/types.js';
 
@@ -435,5 +436,78 @@ describe('runLayer', () => {
     expect(result.pass).toBe(false);
     expect(result.score).toBe(0);
     expect(result.errors).toContain('Unknown layer type');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// defaultTimeoutMs
+// ---------------------------------------------------------------------------
+describe('defaultTimeoutMs', () => {
+  it('returns 300000 for deterministic layers', () => {
+    expect(defaultTimeoutMs('deterministic')).toBe(300_000);
+  });
+
+  it('returns 300000 for screenshot-diff layers', () => {
+    expect(defaultTimeoutMs('screenshot-diff')).toBe(300_000);
+  });
+
+  it('returns 120000 for guardrail layers', () => {
+    expect(defaultTimeoutMs('guardrail')).toBe(120_000);
+  });
+
+  it('returns undefined for agent-review layers', () => {
+    expect(defaultTimeoutMs('agent-review')).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// runDeterministicLayer — timeout
+// ---------------------------------------------------------------------------
+describe('runDeterministicLayer timeout', () => {
+  it('returns timeout error when command exceeds timeout_ms', () => {
+    const layer: LayerConfig = {
+      name: 'slow-test',
+      type: 'deterministic',
+      run: 'sleep 10',
+      weight: 1,
+      timeout_ms: 100,
+    };
+
+    const result = runDeterministicLayer(layer);
+
+    expect(result.pass).toBe(false);
+    expect(result.score).toBe(0);
+    expect(result.errors).toContain('timed out');
+    expect(result.errors).toContain('100');
+  });
+
+  it('passes normally when command finishes within timeout', () => {
+    const layer: LayerConfig = {
+      name: 'fast-test',
+      type: 'deterministic',
+      run: 'echo hi',
+      weight: 1,
+      timeout_ms: 10000,
+    };
+
+    const result = runDeterministicLayer(layer);
+
+    expect(result.pass).toBe(true);
+    expect(result.score).toBe(100);
+  });
+
+  it('uses default timeout when timeout_ms is not set', () => {
+    const layer: LayerConfig = {
+      name: 'default-timeout-test',
+      type: 'deterministic',
+      run: 'echo ok',
+      weight: 1,
+    };
+
+    // Should pass — default is 5 min, echo is instant
+    const result = runDeterministicLayer(layer);
+
+    expect(result.pass).toBe(true);
+    expect(result.score).toBe(100);
   });
 });
