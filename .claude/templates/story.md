@@ -12,10 +12,17 @@
 - [ ] `pnpm typecheck` passes with zero errors
 - [ ] `pnpm test` passes with all tests green
 
-## Files to Create/Modify
+## Tasks
 
-- `<path/to/file.ts>` — <what changes>
-- `<path/to/file.test.ts>` — <what tests>
+Each task references the .claude/ file that guides its implementation by name.
+The pipeline tracks verify attempts per task type to optimize these files over time.
+
+1. [module] Create `<path/to/file.ts>` — <what it does>
+2. [test] Create `<path/to/file.test.ts>` — <what to test>
+3. [new-cli-command] Add command to `<path/to/cli.ts>` — <what it does>
+
+Task type names map to `.claude/patterns/<name>.md` or `.claude/templates/<name>.md`.
+If no matching file exists, the task type is new — the pipeline will create a pattern after the story ships.
 
 ## Context (read these before implementing)
 
@@ -23,15 +30,6 @@
 
 - `<path/to/file.ts>` — <why: "you're adding a function here" or "see the factory pattern on line 20">
 - `<path/to/file.ts:N-M>` — <why: "see how existing commands are structured">
-
-## Patterns & Templates
-
-<Which patterns/templates apply to this story? The implementer reads these INSTEAD of reverse-engineering conventions from existing code.>
-
-- `.claude/patterns/<relevant>.md` — <when to follow it>
-- `.claude/templates/<relevant>.md` — <which files to structure this way>
-
-If none apply, write "Standard — follow `templates/module.md` and `templates/test.md`."
 
 ## Key Types
 
@@ -53,4 +51,4 @@ None / Depends on #<number>
 
 <Any specific things canductor verify should check for this story. Leave blank if standard verification is sufficient.>
 
-<!-- canductor:story-template-version:2 -->
+<!-- canductor:story-template-version:3 -->

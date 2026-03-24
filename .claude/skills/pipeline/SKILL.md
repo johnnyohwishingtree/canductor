@@ -65,7 +65,7 @@ git diff --cached --quiet || git commit -m "chore: inject canductor quality cont
 gh issue list --repo johnnyohwishingtree/canductor --label "story" --label "pending" --state open --json number,title --jq '.[0]'
 ```
 
-If no pending stories, skip to **Step 7** (plan next epic).
+If no pending stories, skip to **Step 7** (optimize patterns).
 
 ### Step 4: Implement
 
@@ -77,11 +77,14 @@ git fetch origin master && git checkout -b canductor/issue-$NUMBER origin/master
 
 Read the issue body and implement it. The story body is your primary guide — it tells you exactly what to read and what to follow.
 
+**Parse the Tasks section** from the story body. Each task has a type in brackets like `[module]`, `[test]`, `[new-cli-command]`. These types map to `.claude/patterns/<type>.md` or `.claude/templates/<type>.md`. Track which tasks this story involves — you'll need this in Step 5 for failure attribution.
+
 **Token-efficient implementation order:**
-1. Read the story's **Context** section — these are the ONLY files you need to read. Do NOT explore the codebase beyond what's listed.
-2. Read the story's **Patterns & Templates** section — follow these INSTEAD of reverse-engineering conventions from existing code.
-3. Read the story's **Key Types** section — use these inline types instead of reading `types.ts`.
-4. If the story doesn't have these sections (older stories), fall back to reading the files listed in "Files to Create/Modify" plus the templates/patterns below.
+1. Read the story's **Tasks** section — note each task type and what it asks you to do.
+2. For each task type, read the corresponding `.claude/` file (e.g., `[module]` → read `.claude/templates/module.md`).
+3. Read the story's **Context** section — these are the ONLY additional files you need to read. Do NOT explore the codebase beyond what's listed.
+4. Read the story's **Key Types** section — use these inline types instead of reading `types.ts`.
+5. If the story doesn't have a Tasks section (older stories), fall back to reading the files listed in "Files to Create/Modify" plus the templates/patterns below.
 
 **Templates** (structure for individual files):
 - **New source modules** → `.claude/templates/module.md`
@@ -170,25 +173,44 @@ Read the decision:
 - **`auto_merge`**: proceed to Step 6.
 - **`block`** or **`human_review`**: **log what failed**, fix the issues, and loop back to the top of Step 5. This counts as your next attempt.
 
-**When verification fails, log the failure before fixing:**
+**When verification fails, log the failure with task attribution:**
+
+1. Look at the error output — which file caused the failure?
+2. Map that file back to the task (from the Tasks section) that produced it.
+3. Log both the learnings and the task result:
+
 ```bash
-# Append what went wrong to the learnings log
-# This persists across sessions — future pipeline runs read this to avoid repeating mistakes
+# Log to learnings (narrative — what went wrong and why)
 cat >> .canductor/learnings.md << LEARNING
 
 ### #$NUMBER, attempt $ATTEMPT ($(date -u +"%Y-%m-%dT%H:%M:%SZ"))
-**Failed:** <one-line summary of what the verification output said was wrong>
+**Failed:** <one-line summary of what the error said>
 LEARNING
+
+# Log to tasks.tsv (structured — which task type caused the failure)
+# task_type is from the [brackets] in the Tasks section
+# guided_by is the .claude/ file that task type maps to
+echo -e "<task_type>\t<guided_by>\t#$NUMBER\t$ATTEMPT\t<failure summary>\t$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> .canductor/tasks.tsv
 ```
 
-After fixing and re-verifying successfully, record how you fixed it:
+After fixing and re-verifying successfully:
 ```bash
+# Record the fix in learnings
 cat >> .canductor/learnings.md << FIX
-**Fix:** <one-line summary of what you changed to fix it>
+**Fix:** <one-line summary of what you changed>
 FIX
+
+# Log successful task results for ALL tasks in this story
+# (each task at the passing verify cycle with failure=none)
+echo -e "<task_type>\t<guided_by>\t#$NUMBER\t$ATTEMPT\tnone\t$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> .canductor/tasks.tsv
 ```
 
-Commit the learnings file along with your code changes. The next `canductor inject CLAUDE.md` will read these learnings and surface the patterns so future sessions avoid the same mistakes.
+If `.canductor/tasks.tsv` doesn't exist yet, create it with the header first:
+```bash
+[ -f .canductor/tasks.tsv ] || echo -e "task_type\tguided_by\tref\tverify_cycle\tfailure\ttimestamp" > .canductor/tasks.tsv
+```
+
+Commit both files along with your code changes.
 
 **You have up to 6 attempts.** Each attempt: fix -> typecheck -> test -> self-review -> canductor verify with --review-json. Use the error output from each failed verify to guide your fixes.
 
@@ -227,7 +249,7 @@ Session: $SESSION_URL"
    git add .canductor/results.tsv
    git diff --cached --quiet || git commit -m "chore: log rejected result for #$NUMBER" && git push -u origin canductor/issue-$NUMBER
    ```
-5. **Stop.** Do not proceed to Step 6 or Step 7.
+5. **Stop.** Do not proceed to Step 6 or beyond.
 
 ### Step 6: Push, PR, merge, close (only if Step 5 passed)
 
@@ -274,9 +296,45 @@ git add .canductor/results.tsv
 git diff --cached --quiet || git commit -m "chore: log canductor result for #$NUMBER" && git push origin master
 ```
 
-### Step 7: Plan next epic (when queue is empty)
+### Step 7: Optimize patterns (when queue is empty)
 
-Only runs when there are no pending stories left.
+Only runs when there are no pending stories left. Analyzes task tracking data and improves the `.claude/` files that guide implementation.
+
+```bash
+PENDING=$(gh issue list --repo johnnyohwishingtree/canductor --label "story" --label "pending" --state open --json number --jq 'length')
+if [ "$PENDING" -gt 0 ]; then
+  echo "Stories still pending — skip optimization"
+  # Jump to next story instead
+fi
+```
+
+If no pending stories, check `.canductor/tasks.tsv` for task types that need optimization:
+
+1. Read `.canductor/tasks.tsv` and group by `task_type`
+2. For each task type, compute average verify cycles across all stories
+3. **Skip types with avg = 1.0 over 3+ uses** — these are converged, the pattern is good
+4. **Focus on types with avg > 1** and 3+ uses — these need pattern improvement
+5. For each optimization target:
+   a. Read the `guided_by` file (e.g., `.claude/templates/test.md`)
+   b. Read the failure reasons from the `failure` column
+   c. Update the guided_by file to explicitly address the failure patterns
+   d. Commit the change
+6. **For new task types** (appeared in tasks.tsv but no `.claude/` file exists):
+   a. Look at the successful implementation diff for that task type
+   b. Create a `.claude/patterns/<task_type>.md` capturing the approach
+   c. Commit the new pattern
+
+After updating patterns, commit and push:
+```bash
+git add .claude/
+git diff --cached --quiet || git commit -m "chore: optimize patterns based on task tracking data" && git push origin master
+```
+
+**Important:** If a previous optimization made things worse (a type's avg went UP after a pattern change), revert that specific file to its previous version using `git log` and `git checkout`.
+
+### Step 8: Plan next epic (when queue is empty)
+
+Only runs when there are no pending stories left and optimization is done.
 
 ```bash
 # Check there's truly nothing queued

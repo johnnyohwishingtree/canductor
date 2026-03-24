@@ -18,6 +18,8 @@ export { generateReport } from './report.js';
 export type { ReportData } from './report.js';
 export { listStaleBranches, deleteBranches } from './clean.js';
 export type { StaleBranch } from './clean.js';
+export { appendTaskResult, readTaskResults, analyzeTaskTypes, getOptimizationTargets, resolveGuidedBy, summarizeTaskPerformance } from './tasks.js';
+export type { TaskResult, TaskTypeAnalysis, OptimizationTarget } from './tasks.js';
 export type {
   CanductorConfig,
   LayerConfig,
