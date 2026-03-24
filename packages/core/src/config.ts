@@ -31,6 +31,8 @@ const LayerSchema = z.object({
   weight: z.number().min(0).max(1),
   parallel: z.boolean().optional(),
   timeout_ms: z.number().positive().optional(),
+  retry: z.number().int().nonnegative().optional(),
+  retry_delay_ms: z.number().positive().optional(),
 });
 
 const PolicySchema = z.object({
