@@ -287,7 +287,8 @@ describe('verify() parallel execution', () => {
 
     const sumDurations = result.layers.reduce((s, l) => s + l.duration_ms, 0);
     // Parallel execution: wall clock should be <= sum of individual durations
-    expect(result.wall_clock_ms).toBeLessThanOrEqual(sumDurations);
+    // Allow 5ms tolerance for timer granularity and scheduling overhead
+    expect(result.wall_clock_ms).toBeLessThanOrEqual(sumDurations + 5);
   });
 
   it('runs sequential layers when parallel is explicitly false', async () => {

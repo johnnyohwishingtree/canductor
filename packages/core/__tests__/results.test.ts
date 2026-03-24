@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, readFileSync, writeFileSync, mkdirSync } from 'nod
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { appendResult, readResults, updateResultStatus } from '../src/results.js';
-import { analyzeResults, detectStalls, correlateLayerFailures, analyzeTrajectory, generatePromptContext } from '../src/results-analysis.js';
+import { analyzeResults, detectStalls, correlateLayerFailures, analyzeTrajectory, generatePromptContext, generateInsights } from '../src/results-analysis.js';
 import { diffResults, getStatus, getTrend, computeAutoBaseline, getBaseline } from '../src/results-query.js';
 import type { VerifyResult, CanductorConfig, ResultRow } from '../src/types.js';
 
@@ -843,5 +843,134 @@ describe('analyzeTrajectory', () => {
     const trajectory = analyzeTrajectory(results);
     expect(trajectory.overall.direction).toBe('improving');
     expect(trajectory.layers).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// generateInsights
+// ---------------------------------------------------------------------------
+describe('generateInsights', () => {
+  it('returns no recommendations when results are empty', () => {
+    const insights = generateInsights(tempDir);
+
+    expect(insights.recommendations).toEqual([]);
+    expect(insights.trajectory.layers).toEqual([]);
+    expect(insights.correlations).toEqual([]);
+  });
+
+  it('recommends action when a layer is declining', () => {
+    // Create results with declining scores for the "tests" layer
+    const scores = [100, 90, 80, 70, 60];
+    for (let i = 0; i < scores.length; i++) {
+      const result: VerifyResult = {
+        ref: `#${i + 1}`,
+        timestamp: '2026-03-21T00:00:00Z',
+        layers: [
+          { name: 'tests', type: 'deterministic', pass: true, score: scores[i], errors: '', duration_ms: 100 },
+        ],
+        composite_score: scores[i],
+        decision: 'auto_merge',
+        summary: '',
+      };
+      appendResult(tempDir, result, 'merged', `Run ${i + 1}`);
+    }
+
+    const insights = generateInsights(tempDir);
+
+    const testsRec = insights.recommendations.find(r => r.includes('"tests"') && r.includes('declining'));
+    expect(testsRec).toBeDefined();
+  });
+
+  it('recommends co-failure investigation when layers are correlated', () => {
+    // Create results where "tests" and "lint" both fail together
+    for (let i = 0; i < 5; i++) {
+      const result: VerifyResult = {
+        ref: `#${i + 1}`,
+        timestamp: '2026-03-21T00:00:00Z',
+        layers: [
+          { name: 'tests', type: 'deterministic', pass: false, score: 0, errors: 'fail', duration_ms: 100 },
+          { name: 'lint', type: 'deterministic', pass: false, score: 0, errors: 'fail', duration_ms: 100 },
+        ],
+        composite_score: 0,
+        decision: 'block',
+        summary: '',
+      };
+      appendResult(tempDir, result, 'rejected', `Fail ${i + 1}`);
+    }
+
+    const insights = generateInsights(tempDir);
+
+    const coFailRec = insights.recommendations.find(r => r.includes('frequently fail together'));
+    expect(coFailRec).toBeDefined();
+  });
+
+  it('returns "All layers are stable" when results exist but no issues found', () => {
+    // Create stable results with consistent high scores
+    for (let i = 0; i < 5; i++) {
+      const result: VerifyResult = {
+        ref: `#${i + 1}`,
+        timestamp: '2026-03-21T00:00:00Z',
+        layers: [
+          { name: 'tests', type: 'deterministic', pass: true, score: 95, errors: '', duration_ms: 100 },
+        ],
+        composite_score: 95,
+        decision: 'auto_merge',
+        summary: '',
+      };
+      appendResult(tempDir, result, 'merged', `Run ${i + 1}`);
+    }
+
+    const insights = generateInsights(tempDir);
+
+    expect(insights.recommendations).toContain('All layers are stable. No action needed.');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// generatePromptContext (additional coverage)
+// ---------------------------------------------------------------------------
+describe('generatePromptContext — recurring issues', () => {
+  it('includes recurring issues section when layers fail repeatedly', () => {
+    // Create blocked results with a layer scoring below 80 at least twice
+    for (let i = 0; i < 3; i++) {
+      const result: VerifyResult = {
+        ref: `#${i + 10}`,
+        timestamp: '2026-03-21T00:00:00Z',
+        layers: [
+          { name: 'code_quality', type: 'agent-review', pass: false, score: 50, errors: 'bad', duration_ms: 100 },
+        ],
+        composite_score: 50,
+        decision: 'block',
+        summary: '',
+      };
+      appendResult(tempDir, result, 'rejected', `Bad PR ${i + 1}`);
+    }
+
+    const context = generatePromptContext(tempDir);
+
+    expect(context).toContain('Recurring issues');
+    expect(context).toContain('code_quality');
+  });
+
+  it('includes trajectory warning when overall score is declining', () => {
+    // Create results with steadily declining composite scores
+    const scores = [100, 90, 80, 70, 60];
+    for (let i = 0; i < scores.length; i++) {
+      const result: VerifyResult = {
+        ref: `#${i + 20}`,
+        timestamp: '2026-03-21T00:00:00Z',
+        layers: [
+          { name: 'tests', type: 'deterministic', pass: true, score: scores[i], errors: '', duration_ms: 100 },
+        ],
+        composite_score: scores[i],
+        decision: 'auto_merge',
+        summary: '',
+      };
+      appendResult(tempDir, result, 'merged', `Run ${i + 1}`);
+    }
+
+    const context = generatePromptContext(tempDir);
+
+    expect(context).toContain('trajectory warning');
   });
 });
