@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { appendResult, readResults, updateResultStatus, analyzeResults, detectStalls, correlateLayerFailures, generatePromptContext, diffResults, getStatus, getTrend, computeAutoBaseline, getBaseline } from '../src/results.js';
+import { appendResult, readResults, updateResultStatus, analyzeResults, detectStalls, correlateLayerFailures, analyzeTrajectory, generatePromptContext, diffResults, getStatus, getTrend, computeAutoBaseline, getBaseline } from '../src/results.js';
 import type { VerifyResult, CanductorConfig, ResultRow } from '../src/types.js';
 
 let tempDir: string;
@@ -717,5 +717,129 @@ describe('correlateLayerFailures', () => {
     const correlations = correlateLayerFailures(results);
     expect(correlations).toHaveLength(1);
     expect(correlations[0].coFailures).toBe(2);
+  });
+});
+
+describe('analyzeTrajectory', () => {
+  function makeRow(overrides: Partial<ResultRow>): ResultRow {
+    return {
+      ref: '1',
+      timestamp: new Date().toISOString(),
+      composite_score: 90,
+      decision: 'auto_merge',
+      layer_scores: 'tests:100',
+      status: 'merged',
+      description: 'Test',
+      ...overrides,
+    };
+  }
+
+  it('detects improving trajectory when scores increase', () => {
+    const results: ResultRow[] = [
+      makeRow({ ref: '1', composite_score: 70, layer_scores: 'tests:70' }),
+      makeRow({ ref: '2', composite_score: 75, layer_scores: 'tests:75' }),
+      makeRow({ ref: '3', composite_score: 80, layer_scores: 'tests:80' }),
+      makeRow({ ref: '4', composite_score: 85, layer_scores: 'tests:85' }),
+      makeRow({ ref: '5', composite_score: 90, layer_scores: 'tests:90' }),
+    ];
+
+    const trajectory = analyzeTrajectory(results);
+    expect(trajectory.overall.direction).toBe('improving');
+    expect(trajectory.overall.slope).toBeGreaterThan(0.5);
+    expect(trajectory.overall.recentScores).toEqual([70, 75, 80, 85, 90]);
+    expect(trajectory.layers).toHaveLength(1);
+    expect(trajectory.layers[0].layer).toBe('tests');
+    expect(trajectory.layers[0].direction).toBe('improving');
+  });
+
+  it('detects declining trajectory when scores decrease', () => {
+    const results: ResultRow[] = [
+      makeRow({ ref: '1', composite_score: 95, layer_scores: 'tests:95' }),
+      makeRow({ ref: '2', composite_score: 90, layer_scores: 'tests:90' }),
+      makeRow({ ref: '3', composite_score: 85, layer_scores: 'tests:85' }),
+      makeRow({ ref: '4', composite_score: 80, layer_scores: 'tests:80' }),
+      makeRow({ ref: '5', composite_score: 75, layer_scores: 'tests:75' }),
+    ];
+
+    const trajectory = analyzeTrajectory(results);
+    expect(trajectory.overall.direction).toBe('declining');
+    expect(trajectory.overall.slope).toBeLessThan(-0.5);
+    expect(trajectory.layers[0].direction).toBe('declining');
+  });
+
+  it('detects stable trajectory when scores are flat', () => {
+    const results: ResultRow[] = [
+      makeRow({ ref: '1', composite_score: 90, layer_scores: 'tests:90' }),
+      makeRow({ ref: '2', composite_score: 90, layer_scores: 'tests:90' }),
+      makeRow({ ref: '3', composite_score: 91, layer_scores: 'tests:91' }),
+      makeRow({ ref: '4', composite_score: 90, layer_scores: 'tests:90' }),
+      makeRow({ ref: '5', composite_score: 90, layer_scores: 'tests:90' }),
+    ];
+
+    const trajectory = analyzeTrajectory(results);
+    expect(trajectory.overall.direction).toBe('stable');
+  });
+
+  it('respects the window parameter', () => {
+    const results: ResultRow[] = [
+      makeRow({ ref: '1', composite_score: 50, layer_scores: 'tests:50' }),
+      makeRow({ ref: '2', composite_score: 55, layer_scores: 'tests:55' }),
+      makeRow({ ref: '3', composite_score: 90, layer_scores: 'tests:90' }),
+      makeRow({ ref: '4', composite_score: 90, layer_scores: 'tests:90' }),
+      makeRow({ ref: '5', composite_score: 90, layer_scores: 'tests:90' }),
+    ];
+
+    // Window of 3 should only see the last 3 (all 90) — stable
+    const trajectory = analyzeTrajectory(results, 3);
+    expect(trajectory.overall.direction).toBe('stable');
+    expect(trajectory.overall.recentScores).toEqual([90, 90, 90]);
+  });
+
+  it('handles empty results', () => {
+    const trajectory = analyzeTrajectory([]);
+    expect(trajectory.overall.direction).toBe('stable');
+    expect(trajectory.overall.slope).toBe(0);
+    expect(trajectory.overall.recentScores).toEqual([]);
+    expect(trajectory.layers).toEqual([]);
+  });
+
+  it('handles single result', () => {
+    const results: ResultRow[] = [
+      makeRow({ ref: '1', composite_score: 85, layer_scores: 'tests:85' }),
+    ];
+
+    const trajectory = analyzeTrajectory(results);
+    expect(trajectory.overall.direction).toBe('stable');
+    expect(trajectory.overall.slope).toBe(0);
+    expect(trajectory.layers).toHaveLength(1);
+  });
+
+  it('tracks multiple layers independently', () => {
+    const results: ResultRow[] = [
+      makeRow({ ref: '1', composite_score: 80, layer_scores: 'tests:90,visual:70' }),
+      makeRow({ ref: '2', composite_score: 82, layer_scores: 'tests:92,visual:65' }),
+      makeRow({ ref: '3', composite_score: 84, layer_scores: 'tests:94,visual:60' }),
+      makeRow({ ref: '4', composite_score: 86, layer_scores: 'tests:96,visual:55' }),
+      makeRow({ ref: '5', composite_score: 88, layer_scores: 'tests:98,visual:50' }),
+    ];
+
+    const trajectory = analyzeTrajectory(results);
+    expect(trajectory.overall.direction).toBe('improving');
+
+    const tests = trajectory.layers.find(l => l.layer === 'tests');
+    const visual = trajectory.layers.find(l => l.layer === 'visual');
+    expect(tests?.direction).toBe('improving');
+    expect(visual?.direction).toBe('declining');
+  });
+
+  it('handles empty layer_scores gracefully', () => {
+    const results: ResultRow[] = [
+      makeRow({ ref: '1', composite_score: 80, layer_scores: '' }),
+      makeRow({ ref: '2', composite_score: 85, layer_scores: '' }),
+    ];
+
+    const trajectory = analyzeTrajectory(results);
+    expect(trajectory.overall.direction).toBe('improving');
+    expect(trajectory.layers).toEqual([]);
   });
 });

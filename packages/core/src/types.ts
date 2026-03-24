@@ -176,6 +176,20 @@ export interface LayerCorrelation {
   ratio: number;
 }
 
+/** Score trajectory for a single verification layer over time. */
+export interface LayerTrajectory {
+  layer: string;
+  direction: 'improving' | 'declining' | 'stable';
+  slope: number;
+  recentScores: number[];
+}
+
+/** Trajectory analysis across all layers and overall composite score. */
+export interface TrajectoryAnalysis {
+  overall: LayerTrajectory;
+  layers: LayerTrajectory[];
+}
+
 /** A single issue found during config validation. */
 export interface ConfigValidationIssue {
   level: 'error' | 'warning';

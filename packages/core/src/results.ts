@@ -7,7 +7,7 @@
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
-import type { ResultRow, VerifyResult, QualityContext, CanductorConfig, StallDetection, LayerCorrelation } from './types.js';
+import type { ResultRow, VerifyResult, QualityContext, CanductorConfig, StallDetection, LayerCorrelation, LayerTrajectory, TrajectoryAnalysis } from './types.js';
 import { summarizeLearnings } from './learnings.js';
 import { summarizeTaskPerformance } from './tasks.js';
 
@@ -298,6 +298,97 @@ export function correlateLayerFailures(results: ResultRow[]): LayerCorrelation[]
 
   correlations.sort((a, b) => b.ratio - a.ratio);
   return correlations;
+}
+
+/**
+ * Compute linear regression slope for a series of scores.
+ * Returns the slope of the best-fit line (score change per result).
+ */
+function linearRegressionSlope(scores: number[]): number {
+  const n = scores.length;
+  if (n < 2) return 0;
+
+  let sumX = 0;
+  let sumY = 0;
+  let sumXY = 0;
+  let sumX2 = 0;
+
+  for (let i = 0; i < n; i++) {
+    sumX += i;
+    sumY += scores[i];
+    sumXY += i * scores[i];
+    sumX2 += i * i;
+  }
+
+  const denominator = n * sumX2 - sumX * sumX;
+  if (denominator === 0) return 0;
+
+  return (n * sumXY - sumX * sumY) / denominator;
+}
+
+/**
+ * Classify a slope into a direction.
+ * slope > 0.5 = improving, slope < -0.5 = declining, else stable.
+ */
+function classifyDirection(slope: number): 'improving' | 'declining' | 'stable' {
+  if (slope > 0.5) return 'improving';
+  if (slope < -0.5) return 'declining';
+  return 'stable';
+}
+
+/**
+ * Analyze score trajectories per layer over time.
+ * Detects whether each layer's scores are improving, declining, or stable
+ * using linear regression over the last `window` results (default 10).
+ */
+export function analyzeTrajectory(results: ResultRow[], window = 10): TrajectoryAnalysis {
+  const recent = results.slice(-window);
+
+  // Overall composite score trajectory
+  const overallScores = recent.map(r => r.composite_score);
+  const overallSlope = linearRegressionSlope(overallScores);
+  const overall: LayerTrajectory = {
+    layer: 'overall',
+    direction: classifyDirection(overallSlope),
+    slope: Math.round(overallSlope * 100) / 100,
+    recentScores: overallScores,
+  };
+
+  // Per-layer trajectories
+  const layerScoresMap = new Map<string, number[]>();
+
+  for (const row of recent) {
+    if (!row.layer_scores || row.layer_scores.trim() === '') continue;
+
+    const scores = row.layer_scores.split(',');
+    for (const s of scores) {
+      const colonIdx = s.lastIndexOf(':');
+      if (colonIdx === -1) continue;
+      const name = s.slice(0, colonIdx).trim();
+      const val = parseFloat(s.slice(colonIdx + 1));
+      if (isNaN(val)) continue;
+
+      if (!layerScoresMap.has(name)) {
+        layerScoresMap.set(name, []);
+      }
+      layerScoresMap.get(name)!.push(val);
+    }
+  }
+
+  const layers: LayerTrajectory[] = [];
+  for (const [name, scores] of layerScoresMap) {
+    const slope = linearRegressionSlope(scores);
+    layers.push({
+      layer: name,
+      direction: classifyDirection(slope),
+      slope: Math.round(slope * 100) / 100,
+      recentScores: scores,
+    });
+  }
+
+  layers.sort((a, b) => a.layer.localeCompare(b.layer));
+
+  return { overall, layers };
 }
 
 /** A single layer diff entry. */
@@ -610,6 +701,22 @@ export function generatePromptContext(repoRoot: string): string {
   const taskSummary = summarizeTaskPerformance(repoRoot);
   if (taskSummary) {
     lines.push(taskSummary);
+    lines.push('');
+  }
+
+  // Include trajectory warnings for declining layers
+  const trajectory = analyzeTrajectory(readResults(repoRoot));
+  const declining = trajectory.layers.filter(l => l.direction === 'declining');
+  if (declining.length > 0) {
+    lines.push('### Score trajectory warnings:');
+    for (const layer of declining) {
+      lines.push(`- "${layer.layer}" layer is declining (slope: ${layer.slope})`);
+    }
+    lines.push('');
+  }
+  if (trajectory.overall.direction === 'declining') {
+    lines.push('### Overall score trend: DECLINING');
+    lines.push(`Overall slope: ${trajectory.overall.slope} — quality is trending downward.`);
     lines.push('');
   }
 
