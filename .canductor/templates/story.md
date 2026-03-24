@@ -9,8 +9,8 @@
 - [ ] <Observable outcome, not just "implementation complete">
 - [ ] <Another observable outcome>
 - [ ] All new functions have tests (happy path + at least one error path)
-- [ ] No source module exceeds 500 lines — split if needed
-- [ ] All references in `.claude/index.md` and other `.md` files point to files that exist
+- [ ] No source module exceeds 500 lines (including modules modified by this story) — split if needed
+- [ ] All references in `.claude/index.md` and other `.md` files point to files that exist (check after any renames or deletions)
 - [ ] `pnpm typecheck` passes with zero errors
 - [ ] `pnpm test` passes with all tests green
 
