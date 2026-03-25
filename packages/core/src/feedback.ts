@@ -5,6 +5,7 @@
 
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { generatePromptContext, analyzeResults } from './results-analysis.js';
+import { parseLayerScores } from './results.js';
 import type { RuleImprovement } from './types.js';
 
 const MARKER_START = '<!-- canductor:start -->';
@@ -79,10 +80,9 @@ export function suggestRuleImprovements(repoRoot: string): RuleImprovement[] {
 
   for (const row of ctx.recent_results) {
     if (row.status === 'rejected' || row.decision === 'block') {
-      const scores = row.layer_scores.split(',');
-      for (const s of scores) {
-        const [name, val] = s.split(':');
-        if (parseInt(val) < 80) {
+      const scores = parseLayerScores(row.layer_scores);
+      for (const [name, val] of scores) {
+        if (val < 80) {
           layerFailCounts.set(name, (layerFailCounts.get(name) ?? 0) + 1);
         }
       }

@@ -4,7 +4,7 @@
  */
 
 import type { ResultRow, QualityContext, StallDetection, LayerCorrelation, LayerTrajectory, TrajectoryAnalysis, InsightsResult } from './types.js';
-import { readResults } from './results.js';
+import { readResults, parseLayerScores } from './results.js';
 import { summarizeLearnings } from './learnings.js';
 import { summarizeTaskPerformance } from './tasks.js';
 
@@ -29,10 +29,9 @@ export function analyzeResults(repoRoot: string): QualityContext {
   const layerFailCounts = new Map<string, number>();
   for (const row of recent) {
     if (row.status === 'rejected' || row.decision === 'block') {
-      const scores = row.layer_scores.split(',');
-      for (const s of scores) {
-        const [name, val] = s.split(':');
-        if (parseInt(val) < 80) {
+      const scores = parseLayerScores(row.layer_scores);
+      for (const [name, val] of scores) {
+        if (val < 80) {
           layerFailCounts.set(name, (layerFailCounts.get(name) ?? 0) + 1);
         }
       }
@@ -136,13 +135,9 @@ export function correlateLayerFailures(results: ResultRow[]): LayerCorrelation[]
     if (!row.layer_scores || row.layer_scores.trim() === '') continue;
 
     const failed = new Set<string>();
-    const scores = row.layer_scores.split(',');
-    for (const s of scores) {
-      const colonIdx = s.lastIndexOf(':');
-      if (colonIdx === -1) continue;
-      const name = s.slice(0, colonIdx).trim();
-      const val = parseFloat(s.slice(colonIdx + 1));
-      if (!isNaN(val) && val < 80) {
+    const scores = parseLayerScores(row.layer_scores);
+    for (const [name, val] of scores) {
+      if (val < 80) {
         failed.add(name);
       }
     }
@@ -251,14 +246,8 @@ export function analyzeTrajectory(results: ResultRow[], window = 10): Trajectory
   for (const row of recent) {
     if (!row.layer_scores || row.layer_scores.trim() === '') continue;
 
-    const scores = row.layer_scores.split(',');
-    for (const s of scores) {
-      const colonIdx = s.lastIndexOf(':');
-      if (colonIdx === -1) continue;
-      const name = s.slice(0, colonIdx).trim();
-      const val = parseFloat(s.slice(colonIdx + 1));
-      if (isNaN(val)) continue;
-
+    const scores = parseLayerScores(row.layer_scores);
+    for (const [name, val] of scores) {
       if (!layerScoresMap.has(name)) {
         layerScoresMap.set(name, []);
       }

@@ -5,7 +5,7 @@
  * Suitable for posting as GitHub PR comments or CI output.
  */
 
-import { readResults } from './results.js';
+import { readResults, parseLayerScores } from './results.js';
 import { getStatus, getTrend } from './results-query.js';
 import type { PipelineStatus, TrendEntry } from './results-query.js';
 import type { ResultRow } from './types.js';
@@ -60,18 +60,6 @@ function sparkline(entries: TrendEntry[]): string {
     .join('');
 }
 
-/**
- * Parse layer scores string into name-score pairs.
- * @param layerScores - Comma-separated "name:score" string
- * @returns Array of {name, score} objects
- */
-function parseLayerScores(layerScores: string): Array<{ name: string; score: number }> {
-  if (!layerScores) return [];
-  return layerScores.split(',').map(entry => {
-    const [name, scoreStr] = entry.split(':');
-    return { name, score: parseFloat(scoreStr) };
-  });
-}
 
 /**
  * Generate a markdown-formatted quality report from verification history.
@@ -129,14 +117,14 @@ export function generateReport(repoRoot: string, ref?: string, verifyResult?: im
 
   // Layer breakdown table
   const layers = parseLayerScores(targetRow.layer_scores);
-  if (layers.length > 0) {
+  if (layers.size > 0) {
     lines.push('### Layer Breakdown');
     lines.push('');
     lines.push('| Layer | Score |');
     lines.push('|-------|-------|');
-    for (const layer of layers) {
-      const layerBadge = scoreBadge(layer.score);
-      lines.push(`| ${layer.name} | ${layerBadge} ${layer.score} |`);
+    for (const [name, score] of layers) {
+      const layerBadge = scoreBadge(score);
+      lines.push(`| ${name} | ${layerBadge} ${score} |`);
     }
     lines.push('');
   }
