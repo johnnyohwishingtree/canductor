@@ -23,6 +23,8 @@ export type { StaleBranch } from './clean.js';
 export { appendTaskResult, readTaskResults, analyzeTaskTypes, getOptimizationTargets, resolveGuidedBy, summarizeTaskPerformance } from './tasks.js';
 export type { TaskResult, TaskTypeAnalysis, OptimizationTarget } from './tasks.js';
 export { readFindings, resolveFindings, runHealthCheck } from './diagnostics.js';
+export { parseReflections, filterByRef, filterGapsOnly } from './reflections.js';
+export type { Reflection, TaskReflection } from './reflections.js';
 export type { HealthReport } from './diagnostics.js';
 export type {
   CanductorConfig,

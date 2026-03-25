@@ -7,6 +7,9 @@ import {
   generateInsights,
   analyzeTaskTypes,
   runHealthCheck,
+  parseReflections,
+  filterByRef,
+  filterGapsOnly,
 } from '@canductor/core';
 
 /**
@@ -214,5 +217,57 @@ export function cmdHealth(args: string[], repoRoot: string): void {
     for (const f of activeFindings) {
       console.log(`    [${f.category}] ${f.finding}`);
     }
+  }
+}
+
+/**
+ * Display past implementation reflections.
+ *
+ * @param args - CLI arguments (--ref N, --gaps-only)
+ * @param repoRoot - Repository root path
+ */
+export function cmdReflections(args: string[], repoRoot: string): void {
+  let reflections = parseReflections(repoRoot);
+
+  if (reflections.length === 0) {
+    console.log('No reflections yet.');
+    return;
+  }
+
+  // Filter by ref
+  const refIdx = args.indexOf('--ref');
+  if (refIdx !== -1 && args[refIdx + 1]) {
+    reflections = filterByRef(reflections, args[refIdx + 1]);
+    if (reflections.length === 0) {
+      console.log(`No reflections found for ref ${args[refIdx + 1]}`);
+      return;
+    }
+  }
+
+  // Filter gaps only
+  if (args.includes('--gaps-only')) {
+    reflections = filterGapsOnly(reflections);
+    if (reflections.length === 0) {
+      console.log('No template gaps found in reflections.');
+      return;
+    }
+  }
+
+  for (const r of reflections) {
+    console.log(`#${r.ref} — ${r.timestamp}`);
+    for (const t of r.tasks) {
+      console.log(`  [${t.taskType}] ${t.description}`);
+      console.log(`    Followed: ${t.followed}`);
+      if (t.missing && t.missing.toLowerCase() !== 'none' && t.missing.toLowerCase() !== 'no gaps') {
+        console.log(`    MISSING:  ${t.missing}`);
+        if (t.foundElsewhere && t.foundElsewhere.toLowerCase() !== 'none') {
+          console.log(`    Found at: ${t.foundElsewhere}`);
+        }
+      }
+      if (t.issuesDuringVerify && t.issuesDuringVerify.toLowerCase() !== 'none') {
+        console.log(`    Issues:   ${t.issuesDuringVerify}`);
+      }
+    }
+    console.log('');
   }
 }
