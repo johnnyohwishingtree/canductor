@@ -9,7 +9,7 @@ import {
 } from './analytics-query.js';
 import {
   cmdInsights, cmdTasks, cmdReport,
-  cmdHealth,
+  cmdHealth, cmdReflections,
 } from './analytics-diagnostics.js';
 import {
   cmdInit, cmdInject, cmdSuggest, cmdContext,
@@ -48,6 +48,7 @@ export const commands = new Map<string, CommandFn>([
   ['layers', cmdLayers],
   ['health', cmdHealth],
   ['resolve', cmdResolve],
+  ['reflections', cmdReflections],
 ]);
 
 export {
@@ -56,5 +57,5 @@ export {
   cmdHistory, cmdInsights, cmdTasks, cmdReport, cmdHealth,
   cmdInit, cmdInject, cmdSuggest, cmdContext,
   cmdResultUpdate, cmdConfigCheck, cmdClean,
-  cmdSkillLint, cmdLayers, cmdResolve,
+  cmdSkillLint, cmdLayers, cmdResolve, cmdReflections,
 };
