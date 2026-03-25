@@ -35,6 +35,18 @@ export function cmdNewCommand(args: string[], repoRoot: string): void {
 }
 ```
 
+**Extracting positional args when flags are present:**
+
+When the command takes both positional args and flags (e.g., `canductor layer-trend tests --last 5 --json`), filter out flags to find the positional arg:
+
+```typescript
+const positionalArg = args.find(a => a !== 'command-name' && !a.startsWith('--'));
+if (!positionalArg) {
+  console.error('Usage: canductor <cmd> <required-arg> [--flag]');
+  process.exit(1);
+}
+```
+
 ### 3. Register the command in the registry
 
 **`packages/cli/src/commands/index.ts`** — add to the `commands` Map and re-export:
