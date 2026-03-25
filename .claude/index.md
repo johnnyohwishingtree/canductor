@@ -57,9 +57,8 @@ Stories list which patterns and templates to follow. Patterns reference template
 | File | Purpose |
 |------|---------|
 | `.canductor/config.yaml` | Verification layer definitions + policy |
-| `.canductor/results.tsv` | Story-level verification scores |
-| `.canductor/tasks.tsv` | Per-task-type attempt tracking (pipeline data → /optimize reads) |
-| `.canductor/findings.tsv` | Audit findings attributed to templates (audit data → /optimize reads) |
-| `.canductor/learnings.md` | What went wrong during verify and how it was fixed (narrative) |
+| `.canductor/results.tsv` | Story-level verification scores (gates merge) |
+| `.canductor/reflections.md` | What templates covered vs what was missing (pipeline → /optimize) |
+| `.canductor/findings.tsv` | Audit findings attributed to templates (audit → /optimize) |
 
-<!-- pipeline:index-version:3 -->
+<!-- pipeline:index-version:4 -->

@@ -114,7 +114,7 @@ Only read a pattern/template if the story references it or if you're doing that 
 After implementing, check if your changes affect the pipeline itself:
 - **Did you add or change CLI flags?** Note it.
 - **Did you change the config.yaml schema?** Note it.
-- **Did you change the results.tsv or tasks.tsv format?** Note it.
+- **Did you change the results.tsv format?** Note it.
 
 If any `.claude/` files (skills, rules) need updating, **do NOT edit them.** Instead, create a GitHub issue:
 ```bash
@@ -175,47 +175,45 @@ node packages/cli/dist/cli.js verify "$NUMBER" --review-json '{"pass":true,"scor
 This runs all layers (typecheck, tests, code_quality) with your self-review score included in the composite. The `code_quality` layer gets a real score instead of "Skipped."
 
 Read the decision:
-- **`auto_merge`**: proceed to Step 6.
-- **`block`** or **`human_review`**: **log what failed**, fix the issues, and loop back to the top of Step 5. This counts as your next attempt.
+- **`auto_merge`**: proceed to Step 5b (reflect), then Step 6.
+- **`block`** or **`human_review`**: fix the issues and loop back to the top of Step 5. This counts as your next attempt.
 
-**When verification fails, log the failure with task attribution:**
+**You have up to 6 attempts.** Each attempt: fix → typecheck → test → self-review → canductor verify with --review-json. Use the error output from each failed verify to guide your fixes.
 
-1. Look at the error output — which file caused the failure?
-2. Map that file back to the task (from the Tasks section) that produced it.
-3. Log both the learnings and the task result:
+### Step 5b: Reflect on implementation
+
+After verify passes (decision = `auto_merge`), write a reflection for each task in the story. This is the learning signal — it captures what the templates covered and what was missing.
 
 ```bash
-# Log to learnings (narrative — what went wrong and why)
-cat >> .canductor/learnings.md << LEARNING
+cat >> .canductor/reflections.md << REFLECTION
 
-### #$NUMBER, attempt $ATTEMPT ($(date -u +"%Y-%m-%dT%H:%M:%SZ"))
-**Failed:** <one-line summary of what the error said>
-LEARNING
+## #$NUMBER — $(date -u +%Y-%m-%dT%H:%M:%SZ)
 
-# Log to tasks.tsv (structured — which task type caused the failure)
-# task_type is from the [brackets] in the Tasks section
-# guided_by is the .canductor/ file that task type maps to
-echo -e "<task_type>\t<guided_by>\t#$NUMBER\t$ATTEMPT\t<failure summary>\t$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> .canductor/tasks.tsv
+REFLECTION
 ```
 
-After fixing and re-verifying successfully:
+For EACH task in the story's Tasks section, add a block:
+
 ```bash
-# Record the fix in learnings
-cat >> .canductor/learnings.md << FIX
-**Fix:** <one-line summary of what you changed>
-FIX
+cat >> .canductor/reflections.md << TASK_REFLECTION
 
-# Log successful task results for ALL tasks in this story
-# (each task at the passing verify cycle with failure=none)
-echo -e "<task_type>\t<guided_by>\t#$NUMBER\t$ATTEMPT\tnone\t$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> .canductor/tasks.tsv
+### [task_type] description
+**Followed:** .canductor/templates/or/patterns/name.md
+**Covered:** <what the template told you that was useful>
+**Missing from template:** <what you had to figure out on your own — decisions, conventions, gotchas not mentioned>
+**Found elsewhere:** <if you referenced other files for guidance instead of the template, list them>
+**Issues during verify:** <if typecheck/tests failed and you fixed inline, what went wrong>
+
+TASK_REFLECTION
 ```
 
-If `.canductor/tasks.tsv` doesn't exist yet, create it with the header first:
-```bash
-[ -f .canductor/tasks.tsv ] || echo -e "task_type\tguided_by\tref\tverify_cycle\tfailure\ttimestamp" > .canductor/tasks.tsv
-```
+Be honest in the reflection. If the template covered everything perfectly, say "No gaps." If you had to look at 3 other files to figure out the mock pattern, say that — it means the template should include the pattern.
 
-Commit both files along with your code changes.
+The "Missing from template" and "Found elsewhere" fields are what `/optimize` uses to improve templates. Specific is better than vague:
+- Bad: "Missing: some testing guidance"
+- Good: "Missing: how to mock execFileSync for commands that shell out to gh CLI. Found mock pattern in packages/core/__tests__/guardrail.test.ts line 15."
+
+Commit reflections.md along with your code changes.
 
 **You have up to 6 attempts.** Each attempt: fix -> typecheck -> test -> self-review -> canductor verify with --review-json. Use the error output from each failed verify to guide your fixes.
 
@@ -328,7 +326,7 @@ if [ "$PENDING" -gt 0 ]; then
 fi
 ```
 
-If no pending stories, read and follow `.claude/skills/optimize/SKILL.md`. This skill reads `.canductor/findings.tsv` (from audits) and `.canductor/tasks.tsv` (from pipeline runs) and updates the templates/patterns that need improvement.
+If no pending stories, read and follow `.claude/skills/optimize/SKILL.md`. This skill reads `.canductor/reflections.md` (from pipeline runs) and `.canductor/findings.tsv` (from audits) and updates the templates/patterns to fill gaps.
 
 ### Step 8: Plan next epic (when queue is empty)
 
