@@ -4,7 +4,7 @@
 
 import { cmdVerify, cmdScore, cmdLayerTest } from './verify.js';
 import {
-  cmdStatus, cmdTrend, cmdDiff, cmdBaseline,
+  cmdStatus, cmdTrend, cmdLayerTrend, cmdDiff, cmdBaseline,
   cmdHistory,
 } from './analytics-query.js';
 import {
@@ -31,6 +31,7 @@ export const commands = new Map<string, CommandFn>([
   ['layer-test', cmdLayerTest],
   ['status', cmdStatus],
   ['trend', cmdTrend],
+  ['layer-trend', cmdLayerTrend],
   ['diff', cmdDiff],
   ['baseline', cmdBaseline],
   ['history', cmdHistory],
@@ -53,7 +54,7 @@ export const commands = new Map<string, CommandFn>([
 
 export {
   cmdVerify, cmdScore, cmdLayerTest,
-  cmdStatus, cmdTrend, cmdDiff, cmdBaseline,
+  cmdStatus, cmdTrend, cmdLayerTrend, cmdDiff, cmdBaseline,
   cmdHistory, cmdInsights, cmdTasks, cmdReport, cmdHealth,
   cmdInit, cmdInject, cmdSuggest, cmdContext,
   cmdResultUpdate, cmdConfigCheck, cmdClean,

@@ -3,7 +3,7 @@ export { verify, computeCompositeScore, evaluatePolicy } from './verify.js';
 export { runLayer, runDeterministicLayer, runScreenshotDiffLayer, runAgentReviewLayer, getAgentReviewPrompt, defaultTimeoutMs, defaultRetry } from './layers.js';
 export { readResults, appendResult, updateResultStatus, parseLayerScores } from './results.js';
 export { analyzeResults, detectStalls, correlateLayerFailures, analyzeTrajectory, generateInsights, generatePromptContext } from './results-analysis.js';
-export { diffResults, getStatus, getTrend, computeAutoBaseline, getBaseline } from './results-query.js';
+export { diffResults, getStatus, getTrend, getLayerTrend, computeAutoBaseline, getBaseline } from './results-query.js';
 export type { LayerDiff, DiffResult, PipelineStatus, TrendEntry, TrendResult } from './results-query.js';
 export { compareScreenshots, updateBaseline } from './screenshot.js';
 export type { ScreenshotDiffResult } from './screenshot.js';
@@ -53,4 +53,6 @@ export type {
   Finding,
   FindingsFilter,
   LayerInfo,
+  LayerTrendEntry,
+  LayerTrendResult,
 } from './types.js';

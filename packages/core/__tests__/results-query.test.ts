@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { appendResult } from '../src/results.js';
-import { diffResults, getStatus, getTrend, computeAutoBaseline, getBaseline } from '../src/results-query.js';
+import { diffResults, getStatus, getTrend, getLayerTrend, computeAutoBaseline, getBaseline } from '../src/results-query.js';
 import type { VerifyResult, CanductorConfig } from '../src/types.js';
 
 // ---------------------------------------------------------------------------
@@ -347,6 +347,73 @@ describe('computeAutoBaseline', () => {
 
     // Last 5 merged: 80, 85, 90, 95, 100 = avg 90
     expect(computeAutoBaseline(tempDir)).toBe(90);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getLayerTrend
+// ---------------------------------------------------------------------------
+describe('getLayerTrend', () => {
+  it('returns per-layer scores across results', () => {
+    seedResults([
+      { ref: '#1', score: 95, pass: true, status: 'merged', layers: [{ name: 'typecheck', score: 100 }, { name: 'tests', score: 90 }] },
+      { ref: '#2', score: 92, pass: true, status: 'merged', layers: [{ name: 'typecheck', score: 100 }, { name: 'tests', score: 85 }] },
+      { ref: '#3', score: 90, pass: true, status: 'merged', layers: [{ name: 'typecheck', score: 100 }, { name: 'tests', score: 80 }] },
+    ]);
+
+    const trend = getLayerTrend(tempDir, 'tests');
+    expect(trend.layer).toBe('tests');
+    expect(trend.entries).toHaveLength(3);
+    expect(trend.entries[0].score).toBe(90);
+    expect(trend.entries[2].score).toBe(80);
+    expect(trend.avg).toBe(85);
+    expect(trend.min).toBe(80);
+    expect(trend.max).toBe(90);
+    expect(trend.direction).toBe('declining');
+  });
+
+  it('supports last parameter to limit results', () => {
+    seedResults([
+      { ref: '#1', score: 95, pass: true, status: 'merged', layers: [{ name: 'tests', score: 70 }] },
+      { ref: '#2', score: 92, pass: true, status: 'merged', layers: [{ name: 'tests', score: 80 }] },
+      { ref: '#3', score: 90, pass: true, status: 'merged', layers: [{ name: 'tests', score: 90 }] },
+    ]);
+
+    const trend = getLayerTrend(tempDir, 'tests', 2);
+    expect(trend.entries).toHaveLength(2);
+    expect(trend.entries[0].ref).toBe('#2');
+    expect(trend.direction).toBe('improving');
+  });
+
+  it('returns empty entries and null direction for unknown layer', () => {
+    seedResults([
+      { ref: '#1', score: 95, pass: true, status: 'merged', layers: [{ name: 'typecheck', score: 100 }] },
+    ]);
+
+    const trend = getLayerTrend(tempDir, 'nonexistent');
+    expect(trend.entries).toHaveLength(0);
+    expect(trend.direction).toBeNull();
+    expect(trend.avg).toBe(0);
+  });
+
+  it('returns stable direction when scores are constant', () => {
+    seedResults([
+      { ref: '#1', score: 95, pass: true, status: 'merged', layers: [{ name: 'typecheck', score: 100 }] },
+      { ref: '#2', score: 92, pass: true, status: 'merged', layers: [{ name: 'typecheck', score: 100 }] },
+    ]);
+
+    const trend = getLayerTrend(tempDir, 'typecheck');
+    expect(trend.direction).toBe('stable');
+  });
+
+  it('returns null direction for single entry', () => {
+    seedResults([
+      { ref: '#1', score: 95, pass: true, status: 'merged', layers: [{ name: 'tests', score: 88 }] },
+    ]);
+
+    const trend = getLayerTrend(tempDir, 'tests');
+    expect(trend.entries).toHaveLength(1);
+    expect(trend.direction).toBeNull();
   });
 });
 

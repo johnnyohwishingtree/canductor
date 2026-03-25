@@ -246,6 +246,23 @@ export interface InsightsResult {
   recommendations: string[];
 }
 
+/** A single entry in a per-layer trend. */
+export interface LayerTrendEntry {
+  ref: string;
+  score: number;
+  timestamp: string;
+}
+
+/** Result of getLayerTrend() — per-layer score history and statistics. */
+export interface LayerTrendResult {
+  layer: string;
+  entries: LayerTrendEntry[];
+  avg: number;
+  min: number;
+  max: number;
+  direction: 'improving' | 'declining' | 'stable' | null;
+}
+
 /** Context injected into agent prompts based on results history. */
 export interface QualityContext {
   /** Recent results summary. */

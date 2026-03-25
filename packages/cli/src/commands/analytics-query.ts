@@ -8,6 +8,7 @@ import {
   diffResults,
   getStatus,
   getTrend,
+  getLayerTrend,
   computeAutoBaseline,
   getBaseline,
   writeConfigBaseline,
@@ -114,6 +115,60 @@ export function cmdTrend(args: string[], repoRoot: string): void {
     const arrow = trend.direction === 'improving' ? '↑' : trend.direction === 'declining' ? '↓' : '→';
     const sign = trend.delta >= 0 ? `+${trend.delta}` : `${trend.delta}`;
     console.log(`Direction: ${arrow} ${trend.direction} (${sign} over ${trend.entries.length} runs)`);
+  }
+}
+
+/**
+ * Show quality trend for a specific verification layer.
+ *
+ * @param args - CLI arguments
+ * @param repoRoot - Repository root path
+ */
+export function cmdLayerTrend(args: string[], repoRoot: string): void {
+  const jsonMode = args.includes('--json');
+  const layerName = args.find(a => a !== '--json' && !a.startsWith('--') && a !== 'layer-trend');
+
+  if (!layerName) {
+    console.error('Usage: canductor layer-trend <layer-name> [--last N] [--json]');
+    process.exit(1);
+  }
+
+  const lastIdx = args.indexOf('--last');
+  const last = lastIdx !== -1 && args[lastIdx + 1] ? parseInt(args[lastIdx + 1], 10) : undefined;
+
+  const trend = getLayerTrend(repoRoot, layerName, last);
+
+  if (trend.entries.length === 0) {
+    if (jsonMode) {
+      console.log(JSON.stringify(trend));
+    } else {
+      console.log(`No data for layer "${layerName}". Check available layers with: canductor layers`);
+    }
+    return;
+  }
+
+  if (jsonMode) {
+    console.log(JSON.stringify(trend));
+    return;
+  }
+
+  console.log(`Layer Trend: ${trend.layer} (${trend.entries.length} results)`);
+  console.log('==================================');
+
+  const BAR_WIDTH = 10;
+  for (const entry of trend.entries) {
+    const filled = Math.round(entry.score / 100 * BAR_WIDTH);
+    const bar = '\u2588'.repeat(filled) + '\u2591'.repeat(BAR_WIDTH - filled);
+    const ref = entry.ref.padEnd(6);
+    console.log(`${ref} ${entry.score}  ${bar}`);
+  }
+
+  console.log('');
+  console.log(`Avg: ${trend.avg} | Min: ${trend.min} | Max: ${trend.max}`);
+
+  if (trend.direction !== null) {
+    const arrow = trend.direction === 'improving' ? '\u2191' : trend.direction === 'declining' ? '\u2193' : '\u2192';
+    console.log(`Direction: ${arrow} ${trend.direction}`);
   }
 }
 

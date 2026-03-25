@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { cmdStatus, cmdTrend, cmdDiff, cmdBaseline, cmdHistory } from '../src/commands/analytics-query.js';
+import { cmdStatus, cmdTrend, cmdLayerTrend, cmdDiff, cmdBaseline, cmdHistory } from '../src/commands/analytics-query.js';
 import { appendResult } from '@canductor/core';
 import type { VerifyResult } from '@canductor/core';
 
@@ -310,5 +310,76 @@ describe('cmdHistory', () => {
     const output = logSpy.mock.calls[0][0];
     const parsed = JSON.parse(output);
     expect(parsed).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// cmdLayerTrend
+// ---------------------------------------------------------------------------
+function seedLayerResults(): void {
+  const layers = [
+    [{ name: 'typecheck', score: 100 }, { name: 'tests', score: 90 }],
+    [{ name: 'typecheck', score: 100 }, { name: 'tests', score: 85 }],
+    [{ name: 'typecheck', score: 100 }, { name: 'tests', score: 80 }],
+  ];
+  for (let i = 0; i < layers.length; i++) {
+    const result: VerifyResult = {
+      ref: `ref-${i + 1}`,
+      timestamp: '2026-03-21T00:00:00Z',
+      layers: layers[i].map(l => ({ name: l.name, type: 'deterministic' as const, pass: true, score: l.score, errors: '', duration_ms: 100 })),
+      composite_score: 95,
+      decision: 'auto_merge',
+      summary: '',
+    };
+    appendResult(tempDir, result, 'merged', `Verified ref-${i + 1}`);
+  }
+}
+
+describe('cmdLayerTrend', () => {
+  it('shows trend for a specific layer', () => {
+    seedLayerResults();
+
+    cmdLayerTrend(['layer-trend', 'tests'], tempDir);
+
+    const output = logSpy.mock.calls.map(c => c[0]).join('\n');
+    expect(output).toContain('Layer Trend: tests');
+    expect(output).toContain('Avg: 85');
+    expect(output).toContain('declining');
+  });
+
+  it('outputs JSON with --json flag', () => {
+    seedLayerResults();
+
+    cmdLayerTrend(['layer-trend', 'tests', '--json'], tempDir);
+
+    const output = logSpy.mock.calls[0][0];
+    const parsed = JSON.parse(output);
+    expect(parsed.layer).toBe('tests');
+    expect(parsed.entries).toHaveLength(3);
+    expect(parsed.direction).toBe('declining');
+  });
+
+  it('limits results with --last flag', () => {
+    seedLayerResults();
+
+    cmdLayerTrend(['layer-trend', 'tests', '--last', '2', '--json'], tempDir);
+
+    const output = logSpy.mock.calls[0][0];
+    const parsed = JSON.parse(output);
+    expect(parsed.entries).toHaveLength(2);
+  });
+
+  it('exits 1 when no layer name provided', () => {
+    expect(() => cmdLayerTrend(['layer-trend'], tempDir)).toThrow('process.exit called');
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('Usage'));
+  });
+
+  it('shows friendly message for unknown layer', () => {
+    seedLayerResults();
+
+    cmdLayerTrend(['layer-trend', 'nonexistent'], tempDir);
+
+    const output = logSpy.mock.calls[0][0];
+    expect(output).toContain('No data for layer "nonexistent"');
   });
 });

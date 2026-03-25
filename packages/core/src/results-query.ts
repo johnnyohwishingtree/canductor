@@ -3,7 +3,7 @@
  * from the verification results log.
  */
 
-import type { ResultRow, CanductorConfig, StallDetection } from './types.js';
+import type { ResultRow, CanductorConfig, StallDetection, LayerTrendResult, LayerTrendEntry } from './types.js';
 import { readResults, parseLayerScores } from './results.js';
 import { analyzeResults } from './results-analysis.js';
 
@@ -228,6 +228,44 @@ export function getTrend(repoRoot: string, last: number = 10): TrendResult {
     direction,
     delta,
   };
+}
+
+/**
+ * Get trend data for a specific verification layer.
+ * Returns per-layer score history, average, min, max, and trend direction.
+ */
+export function getLayerTrend(repoRoot: string, layerName: string, last?: number): LayerTrendResult {
+  const results = readResults(repoRoot);
+
+  const entries: LayerTrendEntry[] = [];
+  for (const row of results) {
+    const scores = parseLayerScores(row.layer_scores);
+    const score = scores.get(layerName);
+    if (score !== undefined) {
+      entries.push({ ref: row.ref, score, timestamp: row.timestamp });
+    }
+  }
+
+  const sliced = last !== undefined ? entries.slice(-last) : entries;
+
+  if (sliced.length === 0) {
+    return { layer: layerName, entries: [], avg: 0, min: 0, max: 0, direction: null };
+  }
+
+  const scores = sliced.map(e => e.score);
+  const avg = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+  const min = Math.min(...scores);
+  const max = Math.max(...scores);
+
+  let direction: LayerTrendResult['direction'] = null;
+  if (sliced.length >= 2) {
+    const delta = sliced[sliced.length - 1].score - sliced[0].score;
+    if (delta > 0) direction = 'improving';
+    else if (delta < 0) direction = 'declining';
+    else direction = 'stable';
+  }
+
+  return { layer: layerName, entries: sliced, avg, min, max, direction };
 }
 
 /**
