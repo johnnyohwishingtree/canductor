@@ -65,8 +65,17 @@ function helperFunction(): void {
 - **Error handling.** Functions that can fail return a result type or throw with a descriptive message. Never swallow errors silently.
 - **Dependency direction.** `cli` → `core`. Never `core` → `cli`.
 
+## Parsing structured text
+
+When a module reads structured markdown or TSV files (e.g., `reflections.md`, `learnings.md`, `results.tsv`):
+
+- **Split on headers** to isolate blocks: `content.split(/(?=^## #)/m)` for `##` headers, `content.split(/(?=^### \[)/m)` for `###` task blocks
+- **Extract fields with regex**: `block.match(/\*\*FieldName:\*\* (.+?)(?:\n|$)/)` for `**Bold:** value` patterns
+- **Handle missing fields gracefully**: return empty string, not undefined — `match?.[1]?.trim() ?? ''`
+- **See `learnings.ts` and `reflections.ts`** for working examples of this pattern
+
 ## Matching test
 
 Every module `src/<name>.ts` must have a corresponding `__tests__/<name>.test.ts`. See `.canductor/templates/test.md` for test structure.
 
-<!-- canductor:template-version:1 -->
+<!-- canductor:template-version:2 -->

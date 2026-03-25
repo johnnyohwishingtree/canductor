@@ -217,7 +217,7 @@ Commit reflections.md along with your code changes.
 
 **You have up to 6 attempts.** Each attempt: fix -> typecheck -> test -> self-review -> canductor verify with --review-json. Use the error output from each failed verify to guide your fixes.
 
-### Step 5b: If verification fails after 6 attempts — discard
+### Step 5c: If verification fails after 6 attempts — discard
 
 If after 6 attempts the decision is still not `auto_merge`:
 
@@ -259,7 +259,7 @@ Session: $SESSION_URL"
 Resolve the session URL (see [Session URL Resolution](#session-url-resolution)).
 
 ```bash
-git add <specific files> # never git add -A
+git add <specific source and test files> .canductor/reflections.md # never git add -A
 git commit -m "<descriptive message>
 
 Closes #$NUMBER"

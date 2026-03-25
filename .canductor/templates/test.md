@@ -90,4 +90,28 @@ describe('<secondFunction>', () => {
 | Edge cases (empty, boundary, null) | When applicable |
 | Async behavior | When function is async |
 
-<!-- canductor:template-version:1 -->
+## Testing markdown/text parsers
+
+When testing modules that parse structured text files (markdown, TSV):
+
+- **Define fixtures as inline string constants** — write the full sample content in the test file, not in external fixture files. This makes tests self-contained and the expected format obvious.
+- **Use `writeFileSync` in temp directories** — write the fixture to a temp file, then call the parser:
+  ```typescript
+  const SAMPLE = `## #160 — 2026-03-24T16:30:00Z
+
+  ### [test] analytics.test.ts
+  **Followed:** .canductor/templates/test.md
+  **Missing from template:** how to mock execFileSync
+  `;
+
+  function writeFixture(content: string): void {
+    const dir = join(tempDir, '.canductor');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'reflections.md'), content);
+  }
+  ```
+- **Test the empty/missing file case** — parser should return `[]` not throw
+- **Test malformed entries** — headers without fields, fields without values
+- **See `reflections.test.ts` and `learnings.test.ts`** for working examples
+
+<!-- canductor:template-version:2 -->
