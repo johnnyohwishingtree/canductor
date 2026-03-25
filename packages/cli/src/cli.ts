@@ -22,6 +22,7 @@ Usage:
   canductor score [ref]                      Run layers, print composite score only
   canductor status [--json]                   Show pipeline health overview
   canductor trend [--last N] [--json]        Show quality trend over last N results (default 10)
+  canductor layer-trend <name> [--last N] [--json]  Show trend for a specific verification layer
   canductor history [--json]                 Show results history table
   canductor diff <ref1> <ref2> [--json]      Compare quality scores between two refs
   canductor baseline [--json]                Show current quality baseline

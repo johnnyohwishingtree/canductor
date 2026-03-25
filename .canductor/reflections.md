@@ -46,3 +46,33 @@
 **Found elsewhere:** none needed
 **Issues during verify:** none
 
+## #165 — 2026-03-25T01:14:00Z
+
+### [module] Add LayerTrendResult type to packages/core/src/types.ts
+**Followed:** .canductor/templates/module.md
+**Covered:** type definition placement, naming conventions (PascalCase for interfaces)
+**Missing from template:** No gaps — straightforward type addition.
+**Found elsewhere:** none needed
+**Issues during verify:** none
+
+### [module] Add getLayerTrend() to packages/core/src/results-query.ts
+**Followed:** .canductor/templates/module.md
+**Covered:** function structure, JSDoc on exports, using parseLayerScores from results.ts
+**Missing from template:** No gaps — followed the existing getTrend() pattern exactly as the story directed.
+**Found elsewhere:** none needed
+**Issues during verify:** none
+
+### [new-cli-command] Add cmdLayerTrend to CLI
+**Followed:** .canductor/patterns/new-cli-command.md
+**Covered:** command registry, usage banner update, import from core, arg parsing pattern, --json mode, exit 1 for missing args
+**Missing from template:** The pattern for extracting a positional arg while skipping flag args (had to filter out --json and --last from args to find the layer name). The existing cmdTrend didn't need this since it has no positional args.
+**Found elsewhere:** none needed
+**Issues during verify:** Initial pnpm typecheck failed because CLI package couldn't see new core export before building core. Resolved by running pnpm build first.
+
+### [test] Core and CLI tests
+**Followed:** .canductor/templates/test.md
+**Covered:** describe/it structure, seedResults helper, testing happy path + error paths, JSON output testing
+**Missing from template:** No gaps — followed existing test patterns in both files.
+**Found elsewhere:** none needed
+**Issues during verify:** none
+
