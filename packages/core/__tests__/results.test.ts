@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { appendResult, readResults, updateResultStatus } from '../src/results.js';
+import { appendResult, readResults, updateResultStatus, parseLayerScores } from '../src/results.js';
 import { analyzeResults, detectStalls, correlateLayerFailures, analyzeTrajectory, generatePromptContext, generateInsights } from '../src/results-analysis.js';
 import { diffResults, getStatus, getTrend, computeAutoBaseline, getBaseline } from '../src/results-query.js';
 import type { VerifyResult, CanductorConfig, ResultRow } from '../src/types.js';
@@ -89,6 +89,33 @@ describe('updateResultStatus', () => {
   it('returns false when results file does not exist', () => {
     const updated = updateResultStatus(tempDir, '#1', 'merged');
     expect(updated).toBe(false);
+  });
+});
+
+describe('parseLayerScores', () => {
+  it('parses normal layer scores string', () => {
+    const result = parseLayerScores('typecheck:100,tests:95,code_quality:88');
+    expect(result.size).toBe(3);
+    expect(result.get('typecheck')).toBe(100);
+    expect(result.get('tests')).toBe(95);
+    expect(result.get('code_quality')).toBe(88);
+  });
+
+  it('returns empty map for empty string', () => {
+    const result = parseLayerScores('');
+    expect(result.size).toBe(0);
+  });
+
+  it('skips malformed entries', () => {
+    const result = parseLayerScores('typecheck:100,badentry,tests:abc,:50');
+    expect(result.size).toBe(1);
+    expect(result.get('typecheck')).toBe(100);
+  });
+
+  it('parses single layer', () => {
+    const result = parseLayerScores('tests:92');
+    expect(result.size).toBe(1);
+    expect(result.get('tests')).toBe(92);
   });
 });
 

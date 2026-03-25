@@ -4,7 +4,7 @@
  */
 
 import type { ResultRow, CanductorConfig, StallDetection } from './types.js';
-import { readResults } from './results.js';
+import { readResults, parseLayerScores } from './results.js';
 import { analyzeResults } from './results-analysis.js';
 
 /** A single layer diff entry. */
@@ -26,18 +26,6 @@ export interface DiffResult {
   layers: LayerDiff[];
 }
 
-/**
- * Parse a layer_scores string ("tests:100,ux:80") into a map.
- */
-function parseLayerScores(raw: string): Map<string, number> {
-  const map = new Map<string, number>();
-  if (!raw) return map;
-  for (const entry of raw.split(',')) {
-    const [name, val] = entry.split(':');
-    if (name && val !== undefined) map.set(name, parseFloat(val));
-  }
-  return map;
-}
 
 /**
  * Compare two refs from the results log and show how quality changed.

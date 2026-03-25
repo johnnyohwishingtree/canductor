@@ -80,6 +80,22 @@ export function appendResult(
 }
 
 /**
+ * Parse a layer_scores string ("tests:100,ux:80") into a map.
+ * Returns an empty map for empty or falsy input.
+ * Skips entries with non-numeric scores.
+ */
+export function parseLayerScores(raw: string): Map<string, number> {
+  const map = new Map<string, number>();
+  if (!raw) return map;
+  for (const entry of raw.split(',')) {
+    const [name, val] = entry.split(':');
+    const score = parseFloat(val);
+    if (name && !isNaN(score)) map.set(name, score);
+  }
+  return map;
+}
+
+/**
  * Update the status of a result row by ref.
  * If multiple rows share the same ref, updates the last match.
  * Returns true if a row was updated, false if ref not found.
