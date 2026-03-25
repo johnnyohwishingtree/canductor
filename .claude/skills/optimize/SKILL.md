@@ -1,14 +1,17 @@
 ---
 name: optimize
-description: Read findings and task data, update .canductor/ templates and patterns to prevent recurring issues
+description: Read reflections and audit findings, update .canductor/ templates and patterns to fill gaps
 argument-hint: "[--dry-run]"
 ---
 
 # /optimize — Improve Templates and Patterns from Data
 
-Reads `.canductor/findings.tsv` (from audits) and `.canductor/tasks.tsv` (from pipeline runs), identifies which `.canductor/` files need improvement, and makes the edits.
+Reads `.canductor/reflections.md` (from pipeline runs) and `.canductor/findings.tsv` (from audits), identifies which `.canductor/` files need improvement, and makes the edits.
 
-This is the core self-improvement loop. Templates and patterns get better → agents follow better instructions → fewer failures → fewer audit findings.
+This is the core self-improvement loop:
+- Reflections tell you "what the template was missing" (from the agent's perspective)
+- Findings tell you "what drifted despite the template" (from the audit's perspective)
+- Optimize updates the templates to fill both gaps
 
 ## Usage
 ```
@@ -18,119 +21,139 @@ This is the core self-improvement loop. Templates and patterns get better → ag
 
 ## Data Sources
 
+### `.canductor/reflections.md` (from /pipeline)
+
+Written after each story's verify passes. One entry per task:
+
+```markdown
+## #160 — 2026-03-24T16:30:00Z
+
+### [test] analytics-diagnostics.test.ts
+**Followed:** .canductor/templates/test.md
+**Covered:** test structure, describe blocks, happy path pattern
+**Missing from template:** how to mock execFileSync for CLI commands
+**Found elsewhere:** packages/core/__tests__/guardrail.test.ts line 15
+**Issues during verify:** none
+```
+
+Key fields for optimization:
+- **Missing from template** → what to ADD to the template
+- **Found elsewhere** → WHERE to get the content to add (existing code example)
+
 ### `.canductor/findings.tsv` (from /audit)
 
 ```
 category	template	finding	ref	timestamp
-dead-code	.canductor/templates/story.md	dead export: agent-review API mode unused	audit-2026-03-24	2026-03-24T...
-stale-ref	.canductor/templates/story.md	update-exports guided_by is wrong path	audit-2026-03-24	2026-03-24T...
-missing-pattern	.canductor/templates/epic.md	refactor has no .canductor/ file	audit-2026-03-24	2026-03-24T...
+dead-code	.canductor/templates/story.md	dead export: X unused	audit-2026-03-24	...
+stale-ref	.canductor/templates/story.md	broken reference in index.md	audit-2026-03-24	...
 ```
 
-Columns:
-- **category**: dead-code, stale-ref, untested, missing-pattern, architecture, readme-drift, config
-- **template**: which `.canductor/` file should have prevented this
-- **finding**: what was found
-- **ref**: which audit run (audit-YYYY-MM-DD)
-- **timestamp**: when
-
-### `.canductor/tasks.tsv` (from /pipeline)
-
-```
-task_type	guided_by	ref	attempt	failure	timestamp
-test	.canductor/templates/test.md	#42	1	vague assertions	2026-03-24T...
-test	.canductor/templates/test.md	#42	2	none	2026-03-24T...
-```
-
-Pipeline failures mean "the template instructions were unclear." Audit findings mean "the template didn't require checking for this."
+Key fields for optimization:
+- **template** → which file to update
+- **category** → what type of acceptance criteria to add
 
 ## Steps
 
-### Step 1: Collect optimization targets
+### Step 1: Parse reflections
 
-Read both files and group by template file:
+Read `.canductor/reflections.md` and extract all entries where **Missing from template** is NOT empty or "No gaps" or "none."
 
-```bash
-# Findings by template
-if [ -f .canductor/findings.tsv ]; then
-  echo "=== Audit findings ==="
-  awk -F'\t' 'NR>1 { print $2 "\t" $1 ": " $3 }' .canductor/findings.tsv | sort
-fi
+Group by the **Followed** field (which template was used). For each template, collect:
+- All "Missing from template" entries
+- All "Found elsewhere" references
+- All "Issues during verify" entries
 
-# Task failures by guided_by
-if [ -f .canductor/tasks.tsv ]; then
-  echo "=== Pipeline failures ==="
-  awk -F'\t' 'NR>1 && $5 != "none" && $5 != "" { print $2 "\t" $1 ": " $5 }' .canductor/tasks.tsv | sort
-fi
+```
+.canductor/templates/test.md:
+  - Missing: "how to mock execFileSync" (from #160, found in guardrail.test.ts)
+  - Missing: "error path for async functions" (from #165)
+
+.canductor/templates/module.md:
+  - Missing: "No gaps" ← skip this one
 ```
 
-For each template file, collect all its failures and findings into one list.
+### Step 2: Parse findings
 
-### Step 2: Skip converged templates
+Read `.canductor/findings.tsv` for entries not yet addressed (no `resolved` column = `true`).
 
-A template is converged if:
-- It has 3+ pipeline uses with 0 failures AND
-- It has 0 audit findings in the most recent audit
+Group by the **template** field:
 
-Skip these — they're working well.
+```
+.canductor/templates/story.md:
+  - dead-code: "dead export: X unused"
+  - readme-drift: "README mentions Y but not in CLI"
+```
 
-### Step 3: Read the template and plan edits
+### Step 3: Skip templates with no gaps
 
-For each non-converged template, read it and the list of failures/findings. Determine what's missing:
+If a template has:
+- Zero "Missing" entries from reflections
+- Zero unresolved findings
 
-**Audit findings → missing acceptance criteria or tasks**
+Skip it — nothing to improve.
 
-| Finding category | What to add to the template |
+### Step 4: Plan and make edits
+
+For each template with gaps, read it and determine what to add:
+
+**From reflections ("Missing from template"):**
+
+The agent told you exactly what was missing. Add it to the template:
+
+1. Read the "Missing" text — e.g., "how to mock execFileSync for CLI commands"
+2. Read the "Found elsewhere" reference — e.g., "guardrail.test.ts line 15"
+3. Look at that reference to understand the pattern
+4. Add the pattern to the template in the right section:
+   - If it's about HOW to write code → add to the template's code example section
+   - If it's about WHAT to include → add to the template's checklist/structure section
+   - If it's a gotcha/warning → add a "Common mistakes" or "Watch out for" section
+
+Example edit to `.canductor/templates/test.md`:
+```markdown
+## Mocking shell commands
+
+When testing modules that call `execFileSync` (e.g., CLI commands that shell out to `gh`):
+
+\`\`\`typescript
+vi.mock('node:child_process', () => ({ execFileSync: vi.fn() }));
+const mockedExec = vi.mocked(execFileSync);
+mockedExec.mockReturnValue('mock output');
+\`\`\`
+
+See `packages/core/__tests__/guardrail.test.ts` for a complete example.
+```
+
+**From findings ("Audit drift"):**
+
+The audit found issues that no single story caused. Add acceptance criteria to the story or epic template:
+
+| Finding category | Add to template |
 |---|---|
-| `dead-code` | Acceptance criteria: "No dead exports — every new export in index.ts is imported somewhere" |
-| `stale-ref` | Acceptance criteria: "All references updated — no stale paths in .claude/index.md, README, or other .md files" |
-| `untested` | Tasks section: ensure every story includes a `[test]` task |
-| `missing-pattern` | Epic template: "If story introduces new task type, include a final story to create the pattern" |
-| `architecture` | Acceptance criteria: "No module exceeds 500 lines. Dependencies flow cli → core only." |
-| `readme-drift` | Acceptance criteria: "If CLI commands changed, README.md Usage section is updated" |
-| `config` | Acceptance criteria: "If config schema changed, config.yaml and config.ts are in sync" |
+| `dead-code` | Story acceptance criteria: "No dead exports — every new export is imported somewhere" |
+| `stale-ref` | Story acceptance criteria: "All .md file references point to files that exist" |
+| `untested` | Story tasks: always include a `[test]` task |
+| `missing-pattern` | Epic template: "If stories use new task types, include a story to create the pattern" |
+| `architecture` | Story acceptance criteria: "No module exceeds 500 lines" |
+| `readme-drift` | Story acceptance criteria: "If CLI changed, README is updated" |
 
-**Pipeline failures → unclear or incomplete instructions**
+### Step 5: Be specific
 
-Look at the specific failure text:
-- "vague assertions" → add example assertions to the test template
-- "wrong import path" → add the correct import convention to the module template
-- "no error path tested" → add "must test at least one error case" to the test template
-- "forgot barrel export" → add explicit "update index.ts" reminder
+Don't add vague guidance. The whole point is that vague guidance doesn't help — the agent had to figure things out on its own despite the template.
 
-### Step 4: Make the edits
+- Bad: "Remember to mock dependencies"
+- Good: "Mock `execFileSync` with `vi.mock('node:child_process', ...)` — see guardrail.test.ts for pattern"
 
-For each template that needs changes:
+- Bad: "Update references"
+- Good: "After renaming/moving files, grep for the old path in all .md and .yaml files"
 
-1. Read the current template file
-2. Find the right section to edit:
-   - **Acceptance criteria gaps** → add new `- [ ]` items to the Acceptance Criteria section
-   - **Task guidance gaps** → add notes to the Tasks section or the task type guidance
-   - **Missing examples** → add a concrete example right after the instruction that was unclear
-3. Be specific. Not "check exports" but "verify every new export in index.ts is imported by at least one file"
-4. Don't duplicate — if the template already has the check, make it more specific instead of adding a second copy
-
-If `--dry-run` was specified, print what would change and stop here.
-
-### Step 5: Commit each update separately
+### Step 6: Commit each update separately
 
 ```bash
 git add .canductor/templates/<name>.md
-git commit -m "optimize: <name> template — <what was added> (from <source>)"
+git commit -m "optimize: <name> template — <what was added> (from reflections #N / audit finding)"
 ```
 
 Separate commits per file so regressions can be reverted individually.
-
-### Step 6: Mark findings as addressed
-
-After updating a template, mark the corresponding findings as addressed so the next audit doesn't re-process them:
-
-```bash
-# Add an "addressed" column or move to a separate file
-# For now, the next audit will re-check and if the issue is fixed, it won't appear
-```
-
-The findings.tsv is append-only. Old findings stay for history. The audit will simply not find the same issues if the template fix worked.
 
 ### Step 7: Push
 
@@ -140,11 +163,16 @@ git push origin master
 
 ## How to tell if optimization worked
 
-After the next pipeline run AND next audit:
-- Pipeline: does the task type's avg attempts decrease? (tasks.tsv)
-- Audit: does the same finding category appear again? (findings.tsv)
+After the next pipeline run:
+- Read the reflections for stories that used the updated template
+- If "Missing from template" is empty or "No gaps" → the optimization worked
+- If the same gap appears again → the edit wasn't clear enough, refine it
 
-If a template update made things WORSE (more attempts or more findings), revert it:
+After the next audit:
+- If the same finding category doesn't appear → the acceptance criteria fix worked
+- If it reappears → the check isn't specific enough
+
+If a template update made things WORSE (reflections show MORE gaps after the update), revert:
 ```bash
 git log --oneline .canductor/templates/<name>.md
 git checkout <previous-good-commit> -- .canductor/templates/<name>.md
@@ -154,5 +182,5 @@ git push origin master
 
 ## Template Maintenance
 
-<!-- canductor:skill-template-version:1 -->
+<!-- canductor:skill-template-version:2 -->
 <!-- Last updated: 2026-03-24 -->
