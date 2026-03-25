@@ -58,7 +58,10 @@ Stories list which patterns and templates to follow. Patterns reference template
 |------|---------|
 | `.canductor/config.yaml` | Verification layer definitions + policy |
 | `.canductor/results.tsv` | Story-level verification scores (gates merge) |
-| `.canductor/reflections.md` | What templates covered vs what was missing (pipeline → /optimize) |
-| `.canductor/findings.tsv` | Audit findings attributed to templates (audit → /optimize) |
+| `.canductor/findings.tsv` | Audit findings history (for trend tracking across audits) |
+| `.canductor/templates/*.md` | Templates with `## Known gaps` sections (the learning signal) |
+| `.canductor/patterns/*.md` | Patterns with `## Known gaps` sections (the learning signal) |
 
-<!-- pipeline:index-version:4 -->
+Gaps are the self-improvement signal. Pipeline adds gaps during Step 5b. Audit adds gaps from findings. /optimize resolves gaps by adding guidance and removing the entry.
+
+<!-- pipeline:index-version:5 -->

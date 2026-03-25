@@ -180,40 +180,32 @@ Read the decision:
 
 **You have up to 6 attempts.** Each attempt: fix → typecheck → test → self-review → canductor verify with --review-json. Use the error output from each failed verify to guide your fixes.
 
-### Step 5b: Reflect on implementation
+### Step 5b: Record gaps in templates
 
-After verify passes (decision = `auto_merge`), write a reflection for each task in the story. This is the learning signal — it captures what the templates covered and what was missing.
+After verify passes (decision = `auto_merge`), review each task you implemented and check if the template/pattern you followed had any gaps.
 
-```bash
-cat >> .canductor/reflections.md << REFLECTION
+For EACH task in the story's Tasks section, ask yourself:
+1. Did I have to figure something out that the template didn't cover?
+2. Did I look at other files for guidance instead of the template?
+3. Did I hit any issues during verify that the template could have warned about?
 
-## #$NUMBER — $(date -u +%Y-%m-%dT%H:%M:%SZ)
+If YES to any of these — **add a gap entry directly to the template file:**
 
-REFLECTION
+```markdown
+# In the template file (.canductor/templates/<type>.md or .canductor/patterns/<type>.md):
+
+## Known gaps
+<!-- Pipeline adds gaps here. /optimize resolves them by adding guidance above. -->
+- <what was missing> — found guidance in <where> instead (#$NUMBER)
 ```
 
-For EACH task in the story's Tasks section, add a block:
+If the template already has a `## Known gaps` section, append to it. If not, add it at the bottom (before the `<!-- canductor:template-version -->` comment).
 
-```bash
-cat >> .canductor/reflections.md << TASK_REFLECTION
+**Be specific.** Not "missing testing guidance" but "no guidance on mocking execFileSync for CLI commands — found pattern in guardrail.test.ts line 15 (#167)."
 
-### [task_type] description
-**Followed:** .canductor/templates/or/patterns/name.md
-**Covered:** <what the template told you that was useful>
-**Missing from template:** <what you had to figure out on your own — decisions, conventions, gotchas not mentioned>
-**Found elsewhere:** <if you referenced other files for guidance instead of the template, list them>
-**Issues during verify:** <if typecheck/tests failed and you fixed inline, what went wrong>
+If the template covered everything perfectly — do nothing. No gaps = no entry needed.
 
-TASK_REFLECTION
-```
-
-Be honest in the reflection. If the template covered everything perfectly, say "No gaps." If you had to look at 3 other files to figure out the mock pattern, say that — it means the template should include the pattern.
-
-The "Missing from template" and "Found elsewhere" fields are what `/optimize` uses to improve templates. Specific is better than vague:
-- Bad: "Missing: some testing guidance"
-- Good: "Missing: how to mock execFileSync for commands that shell out to gh CLI. Found mock pattern in packages/core/__tests__/guardrail.test.ts line 15."
-
-Commit reflections.md along with your code changes.
+Include modified template files in your git add for Step 6.
 
 **You have up to 6 attempts.** Each attempt: fix -> typecheck -> test -> self-review -> canductor verify with --review-json. Use the error output from each failed verify to guide your fixes.
 
@@ -259,7 +251,7 @@ Session: $SESSION_URL"
 Resolve the session URL (see [Session URL Resolution](#session-url-resolution)).
 
 ```bash
-git add <specific files> # never git add -A
+git add <specific source and test files> .canductor/templates/*.md .canductor/patterns/*.md # include any templates you added gaps to
 git commit -m "<descriptive message>
 
 Closes #$NUMBER"

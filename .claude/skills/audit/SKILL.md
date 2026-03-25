@@ -179,13 +179,38 @@ If `$FOUND` is 0, report "Codebase is clean" and stop.
 
 If `--dry-run` was specified, stop here — findings are printed but no issues are created.
 
+## Record findings as template gaps
+
+For each finding, add a gap entry to the template that should have prevented it:
+
+| Finding category | Template to update |
+|---|---|
+| `dead-code` | `.canductor/templates/story.md` |
+| `stale-ref` | `.canductor/templates/story.md` |
+| `untested` | `.canductor/templates/story.md` |
+| `missing-pattern` | `.canductor/templates/epic.md` |
+| `architecture` | `.canductor/templates/story.md` |
+| `readme-drift` | `.canductor/templates/story.md` |
+| `config` | `.canductor/templates/story.md` |
+
+For each template that has findings, add to its `## Known gaps` section:
+```markdown
+## Known gaps
+- audit: <finding summary> (audit-$DATE)
+```
+
+Also keep logging to findings.tsv for history (trend tracking across audits):
+```bash
+echo -e "<category>\t<template>\t<finding>\taudit-$DATE\t$TIMESTAMP" >> .canductor/findings.tsv
+```
+
 ## Create epic and stories
 
 If findings > 0 and not dry-run:
 
-1. Commit findings.tsv:
+1. Commit template gaps + findings.tsv:
 ```bash
-git add .canductor/findings.tsv
+git add .canductor/templates/*.md .canductor/findings.tsv
 git diff --cached --quiet || git commit -m "chore: log audit findings ($DATE)" && git push origin master
 ```
 

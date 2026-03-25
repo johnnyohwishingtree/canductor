@@ -1,186 +1,113 @@
 ---
 name: optimize
-description: Read reflections and audit findings, update .canductor/ templates and patterns to fill gaps
+description: Read known gaps from templates/patterns, resolve them by adding guidance
 argument-hint: "[--dry-run]"
 ---
 
-# /optimize — Improve Templates and Patterns from Data
+# /optimize — Resolve Known Gaps in Templates and Patterns
 
-Reads `.canductor/reflections.md` (from pipeline runs) and `.canductor/findings.tsv` (from audits), identifies which `.canductor/` files need improvement, and makes the edits.
+Scans all `.canductor/templates/*.md` and `.canductor/patterns/*.md` for `## Known gaps` sections. For each gap, adds the missing guidance to the template and removes the gap entry.
 
-This is the core self-improvement loop:
-- Reflections tell you "what the template was missing" (from the agent's perspective)
-- Findings tell you "what drifted despite the template" (from the audit's perspective)
-- Optimize updates the templates to fill both gaps
+Also reads `.canductor/findings.tsv` (from audits) to add acceptance criteria that prevent drift.
 
 ## Usage
 ```
-/optimize              # Read data, update templates, commit
+/optimize              # Resolve gaps, update templates, commit
 /optimize --dry-run    # Show what would change without editing
 ```
 
-## Data Sources
-
-### `.canductor/reflections.md` (from /pipeline)
-
-Written after each story's verify passes. One entry per task:
-
-```markdown
-## #160 — 2026-03-24T16:30:00Z
-
-### [test] analytics-diagnostics.test.ts
-**Followed:** .canductor/templates/test.md
-**Covered:** test structure, describe blocks, happy path pattern
-**Missing from template:** how to mock execFileSync for CLI commands
-**Found elsewhere:** packages/core/__tests__/guardrail.test.ts line 15
-**Issues during verify:** none
-```
-
-Key fields for optimization:
-- **Missing from template** → what to ADD to the template
-- **Found elsewhere** → WHERE to get the content to add (existing code example)
-
-### `.canductor/findings.tsv` (from /audit)
-
-```
-category	template	finding	ref	timestamp
-dead-code	.canductor/templates/story.md	dead export: X unused	audit-2026-03-24	...
-stale-ref	.canductor/templates/story.md	broken reference in index.md	audit-2026-03-24	...
-```
-
-Key fields for optimization:
-- **template** → which file to update
-- **category** → what type of acceptance criteria to add
-
 ## Steps
 
-### Step 1: Parse reflections
+### Step 1: Collect gaps from templates
 
-Read `.canductor/reflections.md` and extract all entries where **Missing from template** is NOT empty or "No gaps" or "none."
+Scan every `.canductor/templates/*.md` and `.canductor/patterns/*.md` for `## Known gaps` sections:
 
-Group by the **Followed** field (which template was used). For each template, collect:
-- All "Missing from template" entries
-- All "Found elsewhere" references
-- All "Issues during verify" entries
-
-```
-.canductor/templates/test.md:
-  - Missing: "how to mock execFileSync" (from #160, found in guardrail.test.ts)
-  - Missing: "error path for async functions" (from #165)
-
-.canductor/templates/module.md:
-  - Missing: "No gaps" ← skip this one
+```bash
+for f in .canductor/templates/*.md .canductor/patterns/*.md; do
+  if grep -q "## Known gaps" "$f" 2>/dev/null; then
+    echo "=== $f ==="
+    sed -n '/## Known gaps/,/^## [^K]/p' "$f" | head -20
+  fi
+done
 ```
 
-### Step 2: Parse findings
-
-Read `.canductor/findings.tsv` for entries not yet addressed (no `resolved` column = `true`).
-
-Group by the **template** field:
-
+Parse each gap entry. A gap looks like:
 ```
-.canductor/templates/story.md:
-  - dead-code: "dead export: X unused"
-  - readme-drift: "README mentions Y but not in CLI"
+- <what was missing> — found guidance in <where> (#story_number)
 ```
 
-### Step 3: Skip templates with no gaps
+If no templates have gaps, skip to Step 3 (audit findings).
 
-If a template has:
-- Zero "Missing" entries from reflections
-- Zero unresolved findings
+### Step 2: Resolve each gap
 
-Skip it — nothing to improve.
+For each gap entry:
 
-### Step 4: Plan and make edits
+1. **Read the "found guidance in" reference** — this tells you where the agent found the answer. Read that file/line to understand the pattern.
 
-For each template with gaps, read it and determine what to add:
+2. **Add guidance to the template.** Find the right section:
+   - If it's about HOW to write code → add a new section with a code example
+   - If it's about WHAT to include → add to the checklist/rules section
+   - If it's a gotcha → add to a "Watch out for" section
 
-**From reflections ("Missing from template"):**
+3. **Be specific.** Copy the actual pattern from the reference. Not "remember to mock dependencies" but the actual mock code with a reference to the example file.
 
-The agent told you exactly what was missing. Add it to the template:
+4. **Remove the gap entry** from the `## Known gaps` section. If no gaps remain, remove the entire section.
 
-1. Read the "Missing" text — e.g., "how to mock execFileSync for CLI commands"
-2. Read the "Found elsewhere" reference — e.g., "guardrail.test.ts line 15"
-3. Look at that reference to understand the pattern
-4. Add the pattern to the template in the right section:
-   - If it's about HOW to write code → add to the template's code example section
-   - If it's about WHAT to include → add to the template's checklist/structure section
-   - If it's a gotcha/warning → add a "Common mistakes" or "Watch out for" section
+5. **Bump the template version** in the `<!-- canductor:template-version:N -->` comment.
 
-Example edit to `.canductor/templates/test.md`:
+Example:
+
 ```markdown
+# Before (test.md):
+## Known gaps
+- mocking execFileSync for CLI commands — found in guardrail.test.ts (#167)
+
+# After (test.md):
 ## Mocking shell commands
-
-When testing modules that call `execFileSync` (e.g., CLI commands that shell out to `gh`):
-
+When testing modules that call `execFileSync`:
 \`\`\`typescript
 vi.mock('node:child_process', () => ({ execFileSync: vi.fn() }));
-const mockedExec = vi.mocked(execFileSync);
-mockedExec.mockReturnValue('mock output');
 \`\`\`
+See `packages/core/__tests__/guardrail.test.ts` for complete example.
 
-See `packages/core/__tests__/guardrail.test.ts` for a complete example.
+## Known gaps
+(section removed — no remaining gaps)
 ```
 
-**From findings ("Audit drift"):**
+### Step 3: Check audit findings
 
-The audit found issues that no single story caused. Add acceptance criteria to the story or epic template:
+If `.canductor/findings.tsv` exists, read unresolved findings:
 
-| Finding category | Add to template |
-|---|---|
-| `dead-code` | Story acceptance criteria: "No dead exports — every new export is imported somewhere" |
-| `stale-ref` | Story acceptance criteria: "All .md file references point to files that exist" |
-| `untested` | Story tasks: always include a `[test]` task |
-| `missing-pattern` | Epic template: "If stories use new task types, include a story to create the pattern" |
-| `architecture` | Story acceptance criteria: "No module exceeds 500 lines" |
-| `readme-drift` | Story acceptance criteria: "If CLI changed, README is updated" |
+```bash
+if [ -f .canductor/findings.tsv ]; then
+  awk -F'\t' 'NR>1 && ($6 != "true" || $6 == "")' .canductor/findings.tsv
+fi
+```
 
-### Step 5: Be specific
+For each unresolved finding, add acceptance criteria to the template listed in the `template` column. See the audit skill for the mapping of finding categories to template edits.
 
-Don't add vague guidance. The whole point is that vague guidance doesn't help — the agent had to figure things out on its own despite the template.
-
-- Bad: "Remember to mock dependencies"
-- Good: "Mock `execFileSync` with `vi.mock('node:child_process', ...)` — see guardrail.test.ts for pattern"
-
-- Bad: "Update references"
-- Good: "After renaming/moving files, grep for the old path in all .md and .yaml files"
-
-### Step 6: Commit each update separately
+### Step 4: Commit each template separately
 
 ```bash
 git add .canductor/templates/<name>.md
-git commit -m "optimize: <name> template — <what was added> (from reflections #N / audit finding)"
+git commit -m "optimize: resolve gaps in <name> template (#story_numbers)"
 ```
 
-Separate commits per file so regressions can be reverted individually.
+Separate commits per file so regressions can be reverted.
 
-### Step 7: Push
+### Step 5: Push
 
 ```bash
 git push origin master
 ```
 
-## How to tell if optimization worked
+## How to tell if it worked
 
-After the next pipeline run:
-- Read the reflections for stories that used the updated template
-- If "Missing from template" is empty or "No gaps" → the optimization worked
-- If the same gap appears again → the edit wasn't clear enough, refine it
-
-After the next audit:
-- If the same finding category doesn't appear → the acceptance criteria fix worked
-- If it reappears → the check isn't specific enough
-
-If a template update made things WORSE (reflections show MORE gaps after the update), revert:
-```bash
-git log --oneline .canductor/templates/<name>.md
-git checkout <previous-good-commit> -- .canductor/templates/<name>.md
-git commit -m "revert: <name> optimization made things worse"
-git push origin master
-```
+After the next pipeline run that uses the updated template:
+- If the agent doesn't add a new gap for the same issue → resolved
+- If the agent adds the same gap again → the guidance wasn't clear enough, refine it
 
 ## Template Maintenance
 
-<!-- canductor:skill-template-version:2 -->
+<!-- canductor:skill-template-version:3 -->
 <!-- Last updated: 2026-03-24 -->
