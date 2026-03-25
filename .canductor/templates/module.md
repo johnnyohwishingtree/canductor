@@ -65,6 +65,21 @@ function helperFunction(): void {
 - **Error handling.** Functions that can fail return a result type or throw with a descriptive message. Never swallow errors silently.
 - **Dependency direction.** `cli` → `core`. Never `core` → `cli`.
 
+## Parsing structured markdown
+
+When a module reads structured markdown (e.g., reflections.md, learnings.md), use a regex split-on-header pattern:
+
+```typescript
+const sections = content.split(/^## /m).filter(Boolean);
+for (const section of sections) {
+  const [headerLine, ...bodyLines] = section.split('\n');
+  const body = bodyLines.join('\n');
+  // Parse subsections with /^### /m the same way
+}
+```
+
+See `packages/core/src/learnings.ts` and `packages/core/src/reflections.ts` for complete examples.
+
 ## Matching test
 
 Every module `src/<name>.ts` must have a corresponding `__tests__/<name>.test.ts`. See `.canductor/templates/test.md` for test structure.
