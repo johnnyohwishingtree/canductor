@@ -81,6 +81,35 @@ describe('<secondFunction>', () => {
 - **Test names describe behavior, not implementation.** `'returns pass when command exits 0'` not `'calls execSync and checks status'`.
 - **Assert specific values.** `expect(result.score).toBe(100)` not `expect(result.score).toBeDefined()`.
 
+## Testing markdown parsers
+
+When testing modules that parse structured markdown files, use inline multi-line string constants as fixtures:
+
+```typescript
+it('parses multi-block markdown', () => {
+  const content = `## Section 1
+
+### Sub A
+**Field:** value A
+
+### Sub B
+**Field:** value B
+
+## Section 2
+
+### Sub C
+**Field:** value C
+`;
+  writeFileSync(join(tempDir, 'data.md'), content);
+  const result = parseFunction(tempDir);
+
+  expect(result).toHaveLength(2);
+  expect(result[0].subs).toHaveLength(2);
+});
+```
+
+See `packages/core/__tests__/learnings.test.ts` and `packages/core/__tests__/reflections.test.ts` for complete examples.
+
 ## Coverage expectations
 
 | Scenario | Required |
