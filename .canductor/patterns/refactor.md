@@ -57,6 +57,14 @@ If new files were created, add test files following `templates/test.md`. Existin
 pnpm build && pnpm typecheck && pnpm test
 ```
 
+## Handling return type mismatches when deduplicating
+
+When extracting a shared function from multiple duplicate implementations, the duplicates may have different return types (e.g., one returns `Map<string, number>`, another returns `Array<{name, score}>`). Steps:
+
+1. **Pick one canonical signature** — prefer the most general/reusable type (usually the one with the most callers)
+2. **Update call sites** that used the other type — change iteration patterns to match the new type (e.g., `for (const [key, val] of map)` instead of `for (const item of array)`, `.size` instead of `.length`)
+3. **Run `pnpm typecheck`** after each call site update to catch conversion errors immediately
+
 ## Key principles
 
 - **No behavior changes.** Refactoring reorganizes code, it does not add features or fix bugs.
